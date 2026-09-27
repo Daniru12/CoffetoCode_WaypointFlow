@@ -1,0 +1,6 @@
+module.exports = {
+  STORE_MANAGER: 'STORE_MANAGER',
+  DISPATCHER: 'DISPATCHER',
+  LOADER: 'LOADER',
+  DRIVER: 'DRIVER',
+};

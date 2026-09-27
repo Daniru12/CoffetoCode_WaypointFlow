@@ -1,0 +1,33 @@
+name: PR Check (Development to Staging)
+
+on:
+  pull_request:
+    branches:
+      - staging
+
+jobs:
+  check-build:
+    runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      # - name: Build project (if applicable)
+      #   run: npm run build
+
+      - name: Run tests
+        # We pass --passWithNoTests so it doesn't fail if you haven't written Jest tests yet
+        run: npm test -- --passWithNoTests
