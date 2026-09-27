@@ -1,0 +1,33 @@
+name: Auto Merge Staging to Main
+
+on:
+  push:
+    branches:
+      - staging
+
+jobs:
+  merge-to-main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Merge Staging to Main and Push
+        run: |
+          # Set up git config for the bot
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Fetch the main branch
+          git fetch origin main:main
+          
+          # Checkout main branch
+          git checkout main
+          
+          # Merge staging into main without opening an editor
+          git merge origin/staging --no-edit
+          
+          # Push the updated main branch back to the repository
+          git push origin main
