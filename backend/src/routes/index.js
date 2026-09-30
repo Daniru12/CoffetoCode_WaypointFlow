@@ -1,0 +1,46 @@
+const express = require('express');
+const router = express.Router();
+
+const authRoutes = require('../modules/auth/auth.routes');
+const userRoutes = require('../modules/users/user.routes');
+const outletRoutes = require('../modules/outlets/outlet.routes');
+const vehicleRoutes = require('../modules/vehicles/vehicle.routes');
+const orderRoutes = require('../modules/orders/order.routes');
+const storeRoutes = require('../modules/store/store.routes');
+const dispatcherRoutes = require('../modules/dispatcher/dispatcher.routes');
+const planningRoutes = require('../modules/planning/planning.routes');
+const allocationRoutes = require('../modules/allocation/allocation.routes');
+const tripRoutes = require('../modules/trips/trip.routes');
+const deferralRoutes = require('../modules/deferrals/deferral.routes');
+const loadingRoutes = require('../modules/loading/loading.routes');
+const deliveryRoutes = require('../modules/deliveries/delivery.routes');
+const driverRoutes = require('../modules/driver/driver.routes');
+const trackingRoutes = require('../modules/tracking/tracking.routes');
+const syncRoutes = require('../modules/sync/sync.routes');
+const forecastRoutes = require('../modules/forecasts/forecast.routes');
+const notificationRoutes = require('../modules/notifications/notification.routes');
+const auditRoutes = require('../modules/audit/audit.routes');
+const issueRoutes = require('../modules/issues/issue.routes');
+
+router.use('/auth', authRoutes);
+router.use('/users', userRoutes);
+router.use('/outlets', outletRoutes);
+router.use('/vehicles', vehicleRoutes);
+router.use('/orders', orderRoutes);
+router.use('/store', storeRoutes);
+router.use('/dispatcher', dispatcherRoutes);
+router.use('/plans', planningRoutes);
+router.use('/allocation', allocationRoutes);
+router.use('/trips', tripRoutes);
+router.use('/deferrals', deferralRoutes);
+router.use('/loading', loadingRoutes);
+router.use('/deliveries', deliveryRoutes);
+router.use('/driver', driverRoutes);
+router.use('/tracking', trackingRoutes);
+router.use('/sync', syncRoutes);
+router.use('/forecasts', forecastRoutes);
+router.use('/notifications', notificationRoutes);
+router.use('/audit', auditRoutes);
+router.use('/issues', issueRoutes);
+
+module.exports = router;
