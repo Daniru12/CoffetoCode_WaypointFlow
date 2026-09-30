@@ -36,7 +36,17 @@ const getOutletById = asyncHandler(async (req, res) => {
   res.status(200).json(new ApiResponse(200, outlet, 'Outlet retrieved'));
 });
 
+/**
+ * Create a new outlet
+ * POST /api/v1/outlets
+ */
+const createOutlet = asyncHandler(async (req, res) => {
+  const outlet = await Outlet.create(req.body);
+  res.status(201).json(new ApiResponse(201, outlet, 'Outlet created successfully'));
+});
+
 module.exports = {
   getOutlets,
-  getOutletById
+  getOutletById,
+  createOutlet
 };

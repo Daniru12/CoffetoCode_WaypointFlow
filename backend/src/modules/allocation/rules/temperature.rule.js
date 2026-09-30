@@ -4,7 +4,7 @@ module.exports = {
       return {
         valid: false,
         code: 'REFRIGERATION_REQUIRED',
-        message: 'This chilled order requires a refrigerated vehicle.'
+        message: 'Ambient vehicle cannot carry chilled goods. Chilled orders require a reefer vehicle.'
       };
     }
     return { valid: true };

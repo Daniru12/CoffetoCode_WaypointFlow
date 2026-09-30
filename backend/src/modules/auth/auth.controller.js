@@ -33,6 +33,9 @@ const login = asyncHandler(async (req, res) => {
     return res.status(401).json(new ApiResponse(401, null, 'Invalid credentials'));
   }
 
+  user.lastLogin = new Date();
+  await user.save();
+
   const token = jwt.sign(
     {
       id: user._id,
@@ -66,7 +69,53 @@ const getMe = asyncHandler(async (req, res) => {
   res.status(200).json(new ApiResponse(200, user, 'Profile retrieved'));
 });
 
+/**
+ * Logout user
+ * POST /api/v1/auth/logout
+ */
+const logout = asyncHandler(async (req, res) => {
+  res.status(200).json(new ApiResponse(200, null, 'Logged out successfully'));
+});
+
+/**
+ * Refresh JWT token
+ * POST /api/v1/auth/refresh
+ */
+const refresh = asyncHandler(async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json(new ApiResponse(401, null, 'Token required'));
+  }
+
+  const token = authHeader.split(' ')[1];
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET, { ignoreExpiration: true });
+    const user = await User.findById(decoded.id);
+    if (!user || !user.isActive) {
+      return res.status(401).json(new ApiResponse(401, null, 'User not found or inactive'));
+    }
+
+    const newToken = jwt.sign(
+      {
+        id: user._id,
+        email: user.email,
+        role: user.role,
+        depot: user.depot,
+        outlet: user.outlet ? user.outlet._id : null
+      },
+      JWT_SECRET,
+      { expiresIn: tokenExpiresIn }
+    );
+
+    res.status(200).json(new ApiResponse(200, { token: newToken }, 'Token refreshed'));
+  } catch (err) {
+    return res.status(401).json(new ApiResponse(401, null, 'Invalid token for refresh'));
+  }
+});
+
 module.exports = {
   login,
-  getMe
+  getMe,
+  logout,
+  refresh
 };

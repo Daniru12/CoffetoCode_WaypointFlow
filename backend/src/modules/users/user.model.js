@@ -10,8 +10,11 @@ const userSchema = new mongoose.Schema({
     required: true
   },
   outlet: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet' },
+  outletId: { type: String },
   depot: { type: String },
-  isActive: { type: Boolean, default: true }
+  assignedVehicle: { type: mongoose.Schema.Types.ObjectId, ref: 'Vehicle' },
+  isActive: { type: Boolean, default: true },
+  lastLogin: { type: Date }
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);

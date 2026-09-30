@@ -1,11 +1,12 @@
 const express = require('express');
-const { getOutlets, getOutletById } = require('./outlet.controller');
+const router = express.Router();
+const outletController = require('./outlet.controller');
 const { authenticate } = require('../../middlewares/auth.middleware');
 
-const router = express.Router();
+router.use(authenticate);
 
-// Allow public or authenticated read for outlets
-router.get('/', authenticate, getOutlets);
-router.get('/:id', authenticate, getOutletById);
+router.get('/', outletController.getOutlets);
+router.post('/', outletController.createOutlet);
+router.get('/:id', outletController.getOutletById);
 
 module.exports = router;

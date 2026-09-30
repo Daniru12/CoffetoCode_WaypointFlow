@@ -1,9 +1,13 @@
-name: Auto Merge Staging to Main
+name: Auto Merge Stage to Main
 
 on:
   push:
     branches:
-      - staging
+      - Stage
+
+# CRITICAL: We need write permissions to push to main
+permissions:
+  contents: write
 
 jobs:
   merge-to-main:
@@ -14,7 +18,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Merge Staging to Main and Push
+      - name: Merge Stage to Main and Push
         run: |
           # Set up git config for the bot
           git config --global user.name "github-actions[bot]"
@@ -26,8 +30,8 @@ jobs:
           # Checkout main branch
           git checkout main
           
-          # Merge staging into main without opening an editor
-          git merge origin/staging --no-edit
+          # Merge Stage into main without opening an editor
+          git merge origin/Stage --no-edit
           
           # Push the updated main branch back to the repository
           git push origin main
