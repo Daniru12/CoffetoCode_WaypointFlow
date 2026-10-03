@@ -7,6 +7,7 @@ import { RoleRoute } from './routes/RoleRoute';
 
 // Layouts
 import { AuthLayout } from './layouts/AuthLayout';
+import { AdminLayout } from './layouts/AdminLayout';
 import { StoreLayout } from './layouts/StoreLayout';
 import { DispatcherLayout } from './layouts/DispatcherLayout';
 import { LoaderLayout } from './layouts/LoaderLayout';
@@ -14,6 +15,9 @@ import { DriverLayout } from './layouts/DriverLayout';
 
 // Pages
 import { Login } from './pages/auth/Login';
+
+// Admin Pages
+import { UserManagement } from './pages/admin/UserManagement';
 
 // Store Manager Pages
 import { StoreDashboard } from './pages/store/Dashboard';
@@ -62,6 +66,21 @@ export const App = () => {
             {/* Public Authentication */}
             <Route element={<AuthLayout />}>
               <Route path="/login" element={<Login />} />
+            </Route>
+
+            {/* Admin Workspace */}
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute>
+                  <RoleRoute allowedRoles={['ADMIN']}>
+                    <AdminLayout />
+                  </RoleRoute>
+                </ProtectedRoute>
+              }
+            >
+              <Route path="users" element={<UserManagement />} />
+              <Route index element={<Navigate to="users" replace />} />
             </Route>
 
             {/* Store Manager Workspace */}

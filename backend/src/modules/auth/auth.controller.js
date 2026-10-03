@@ -8,6 +8,67 @@ const asyncHandler = require('../../utils/asyncHandler');
 
 const tokenExpiresIn = config.jwt.expiresIn || '24h';
 
+const ALLOWED_ROLES = ['ADMIN', 'STORE_MANAGER', 'DISPATCHER', 'LOADER', 'DRIVER'];
+
+/**
+ * Register a new user and issue JWT
+ * POST /api/v1/auth/register
+ */
+const register = asyncHandler(async (req, res) => {
+  const { name, email, password, role, depot, outlet, outletId } = req.body;
+
+  if (!name || !email || !password || !role) {
+    return res.status(400).json(new ApiResponse(400, null, 'name, email, password, and role are required'));
+  }
+
+  if (!ALLOWED_ROLES.includes(role)) {
+    return res.status(400).json(
+      new ApiResponse(400, null, `Invalid role. Must be one of: ${ALLOWED_ROLES.join(', ')}`)
+    );
+  }
+
+  const existing = await User.findOne({ email });
+  if (existing) {
+    return res.status(409).json(new ApiResponse(409, null, 'Email is already registered'));
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  const user = await User.create({
+    name,
+    email,
+    password: hashedPassword,
+    role,
+    depot: depot || null,
+    outlet: outlet || null,
+    outletId: outletId || null,
+    isActive: true
+  });
+
+  const token = jwt.sign(
+    {
+      id: user._id,
+      email: user.email,
+      role: user.role,
+      depot: user.depot,
+      outlet: user.outlet || null
+    },
+    JWT_SECRET,
+    { expiresIn: tokenExpiresIn }
+  );
+
+  const userResponse = {
+    id: user._id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    depot: user.depot,
+    outlet: user.outlet
+  };
+
+  res.status(201).json(new ApiResponse(201, { user: userResponse, token }, 'User registered successfully'));
+});
+
 /**
  * Login user and issue JWT
  * POST /api/v1/auth/login
@@ -113,9 +174,44 @@ const refresh = asyncHandler(async (req, res) => {
   }
 });
 
+/**
+ * Change User Password
+ * PUT /api/v1/auth/password
+ */
+const changePassword = asyncHandler(async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json(new ApiResponse(400, null, 'currentPassword and newPassword are required'));
+  }
+
+  if (newPassword.length < 8) {
+    return res.status(400).json(new ApiResponse(400, null, 'New password must be at least 8 characters'));
+  }
+
+  const user = await User.findById(req.user._id);
+  if (!user) {
+    return res.status(404).json(new ApiResponse(404, null, 'User not found'));
+  }
+
+  const isMatch = await bcrypt.compare(currentPassword, user.password);
+  if (!isMatch) {
+    return res.status(401).json(new ApiResponse(401, null, 'Incorrect current password'));
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+  user.password = hashedPassword;
+  await user.save();
+
+  res.status(200).json(new ApiResponse(200, null, 'Password changed successfully'));
+});
+
 module.exports = {
+  register,
   login,
   getMe,
   logout,
-  refresh
+  refresh,
+  changePassword
 };
+

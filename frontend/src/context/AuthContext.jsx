@@ -51,6 +51,18 @@ export const AuthProvider = ({ children }) => {
     return userData;
   };
 
+  const register = async (payload) => {
+    const res = await authApi.register(payload);
+    const { user: userData, token: userToken } = res.data;
+
+    setUser(userData);
+    setToken(userToken);
+    localStorage.setItem('waypoint_user', JSON.stringify(userData));
+    localStorage.setItem('waypoint_token', userToken);
+
+    return userData;
+  };
+
   const logout = () => {
     try {
       authApi.logout().catch(() => {});
@@ -64,6 +76,8 @@ export const AuthProvider = ({ children }) => {
 
   const getRoleRedirect = (role = user?.role) => {
     switch (role) {
+      case 'ADMIN':
+        return '/admin/users';
       case 'STORE_MANAGER':
         return '/store/dashboard';
       case 'DISPATCHER':
@@ -85,8 +99,10 @@ export const AuthProvider = ({ children }) => {
         loading,
         isAuthenticated: !!token && !!user,
         login,
+        register,
         logout,
         getRoleRedirect,
+        isAdmin: user?.role === 'ADMIN',
         isDispatcher: user?.role === 'DISPATCHER',
         isStoreManager: user?.role === 'STORE_MANAGER',
         isLoader: user?.role === 'LOADER',
