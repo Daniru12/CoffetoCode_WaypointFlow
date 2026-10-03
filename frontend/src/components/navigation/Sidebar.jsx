@@ -22,6 +22,10 @@ export const Sidebar = () => {
 
   const getLinks = () => {
     switch (role) {
+      case 'ADMIN':
+        return [
+          { to: '/admin/users', label: 'User Directory', icon: LayoutDashboard }
+        ];
       case 'STORE_MANAGER':
         return [
           { to: '/store/dashboard', label: 'Store Dashboard', icon: LayoutDashboard },

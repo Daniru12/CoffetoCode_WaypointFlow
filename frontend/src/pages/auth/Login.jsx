@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Truck, Lock, Mail, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Truck, Lock, Mail, ArrowRight } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 
 export const Login = () => {
@@ -112,7 +112,7 @@ export const Login = () => {
           </button>
         </form>
 
-        {/* Quick Demo Switcher for Judges */}
+        {/* Quick Demo Switcher */}
         <div style={{
           marginTop: '2rem',
           paddingTop: '1.5rem',
@@ -120,39 +120,22 @@ export const Login = () => {
           textAlign: 'center'
         }}>
           <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Quick Demo Accounts (Designathon Walkthrough)
+            Quick Demo Accounts
           </span>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginTop: '0.75rem' }}>
-            <button
-              type="button"
-              onClick={() => setRoleDemo('dispatcher@waypoint.lk')}
-              className="btn-secondary"
-              style={{ fontSize: '0.75rem', padding: '0.4rem 0.5rem' }}
-            >
-              Central Dispatcher
+            <button type="button" onClick={() => setRoleDemo('admin@waypoint.lk')} className="btn-secondary" style={{ fontSize: '0.75rem', padding: '0.4rem 0.5rem' }}>
+              Admin
             </button>
-            <button
-              type="button"
-              onClick={() => setRoleDemo('store.manager@waypoint.lk')}
-              className="btn-secondary"
-              style={{ fontSize: '0.75rem', padding: '0.4rem 0.5rem' }}
-            >
+            <button type="button" onClick={() => setRoleDemo('dispatcher@waypoint.lk')} className="btn-secondary" style={{ fontSize: '0.75rem', padding: '0.4rem 0.5rem' }}>
+              Dispatcher
+            </button>
+            <button type="button" onClick={() => setRoleDemo('store.manager@waypoint.lk')} className="btn-secondary" style={{ fontSize: '0.75rem', padding: '0.4rem 0.5rem' }}>
               Store Manager
             </button>
-            <button
-              type="button"
-              onClick={() => setRoleDemo('loader@waypoint.lk')}
-              className="btn-secondary"
-              style={{ fontSize: '0.75rem', padding: '0.4rem 0.5rem' }}
-            >
-              Warehouse Loader
+            <button type="button" onClick={() => setRoleDemo('loader@waypoint.lk')} className="btn-secondary" style={{ fontSize: '0.75rem', padding: '0.4rem 0.5rem' }}>
+              Loader
             </button>
-            <button
-              type="button"
-              onClick={() => setRoleDemo('driver@waypoint.lk')}
-              className="btn-secondary"
-              style={{ fontSize: '0.75rem', padding: '0.4rem 0.5rem' }}
-            >
+            <button type="button" onClick={() => setRoleDemo('driver@waypoint.lk')} className="btn-secondary" style={{ fontSize: '0.75rem', padding: '0.4rem 0.5rem', gridColumn: '1 / -1' }}>
               Fleet Driver
             </button>
           </div>
