@@ -18,6 +18,9 @@ import { Login } from './pages/auth/Login';
 
 // Admin Pages
 import { UserManagement } from './pages/admin/UserManagement';
+import { DepotFleetManagement } from './pages/admin/DepotFleetManagement';
+import { OutletManagement } from './pages/admin/OutletManagement';
+import { AuditLogs } from './pages/admin/AuditLogs';
 
 // Store Manager Pages
 import { StoreDashboard } from './pages/store/Dashboard';
@@ -80,6 +83,9 @@ export const App = () => {
               }
             >
               <Route path="users" element={<UserManagement />} />
+              <Route path="depots" element={<DepotFleetManagement />} />
+              <Route path="outlets" element={<OutletManagement />} />
+              <Route path="audit" element={<AuditLogs />} />
               <Route index element={<Navigate to="users" replace />} />
             </Route>
 

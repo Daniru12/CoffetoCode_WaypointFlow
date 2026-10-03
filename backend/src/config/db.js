@@ -6,6 +6,22 @@ const config = require('./env');
 if (config.mongodb.uri && config.mongodb.uri.startsWith('mongodb+srv://')) {
   try {
     dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
+    const origLookup = dns.lookup;
+    dns.lookup = (hostname, options, callback) => {
+      if (typeof options === 'function') {
+        callback = options;
+        options = {};
+      }
+      dns.resolve4(hostname, (err, addresses) => {
+        if (err || !addresses || addresses.length === 0) {
+          return origLookup(hostname, options, callback);
+        }
+        if (options && options.all) {
+          return callback(null, addresses.map(a => ({ address: a, family: 4 })));
+        }
+        return callback(null, addresses[0], 4);
+      });
+    };
   } catch (e) {
     // Ignore if not permitted
   }
@@ -19,7 +35,7 @@ const connectDB = async () => {
 
   try {
     const conn = await mongoose.connect(config.mongodb.uri, {
-      serverSelectionTimeoutMS: 5000
+      serverSelectionTimeoutMS: 15000
     });
     console.log(`MongoDB Connected: ${conn.connection.host}`);
     return conn;
