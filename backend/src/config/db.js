@@ -27,32 +27,40 @@ if (config.mongodb.uri && config.mongodb.uri.startsWith('mongodb+srv://')) {
   }
 }
 
+let cachedPromise = null;
+
 const connectDB = async () => {
   if (!config.mongodb.uri) {
     console.warn('MongoDB URI is not provided. Skipping database connection for now.');
     return null;
   }
 
-  try {
-    const conn = await mongoose.connect(config.mongodb.uri, {
-      serverSelectionTimeoutMS: 15000
-    });
-    console.log(`MongoDB Connected: ${conn.connection.host}`);
-    return conn;
-  } catch (error) {
-    console.error(`Error connecting to MongoDB: ${error.message}`);
-    console.warn('\nTip for MongoDB Atlas:');
-    console.warn('1. Check that your current IP address is whitelisted in MongoDB Atlas:');
-    console.warn('   Go to Atlas -> Network Access -> Add IP Address -> Allow Access from Anywhere (0.0.0.0/0) or Current IP.');
-    console.warn('2. Alternatively, for local offline development, set MONGODB_URI=mongodb://127.0.0.1:27017/coffetocode in backend/.env\n');
-
-    if (config.env === 'production') {
-      process.exit(1);
-    } else {
-      console.warn('Running in development mode: server will continue running while you update IP whitelist or database settings.');
-    }
-    return null;
+  // If already connected, return existing connection
+  if (mongoose.connection.readyState >= 1) {
+    return mongoose.connection;
   }
+
+  // If already connecting, return existing in-flight promise
+  if (!cachedPromise) {
+    cachedPromise = mongoose
+      .connect(config.mongodb.uri, {
+        serverSelectionTimeoutMS: 15000
+      })
+      .then((conn) => {
+        console.log(`MongoDB Connected: ${conn.connection.host}`);
+        return conn;
+      })
+      .catch((error) => {
+        cachedPromise = null;
+        console.error(`Error connecting to MongoDB: ${error.message}`);
+        console.warn('\nTip for MongoDB Atlas:');
+        console.warn('1. Check that your current IP address is whitelisted in MongoDB Atlas (Network Access -> Allow Access from Anywhere 0.0.0.0/0).');
+        console.warn('2. Alternatively, for local offline development, set MONGODB_URI=mongodb://127.0.0.1:27017/coffetocode in backend/.env\n');
+        throw error;
+      });
+  }
+
+  return cachedPromise;
 };
 
 module.exports = connectDB;
