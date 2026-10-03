@@ -6,7 +6,7 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true },
   role: {
     type: String,
-    enum: ["STORE_MANAGER", "DISPATCHER", "LOADER", "DRIVER"],
+    enum: ["ADMIN", "STORE_MANAGER", "DISPATCHER", "LOADER", "DRIVER"],
     required: true
   },
   outlet: { type: mongoose.Schema.Types.ObjectId, ref: 'Outlet' },

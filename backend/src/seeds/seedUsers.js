@@ -9,6 +9,13 @@ async function seedUsers() {
 
   const users = [
     {
+      name: 'System Admin',
+      email: 'admin@waypoint.lk',
+      password: defaultPassword,
+      role: 'ADMIN',
+      depot: 'Peliyagoda'
+    },
+    {
       name: 'Central Dispatcher',
       email: 'dispatcher@waypoint.lk',
       password: defaultPassword,
