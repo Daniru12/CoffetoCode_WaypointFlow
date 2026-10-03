@@ -12,9 +12,12 @@ import {
   Compass,
   FileCheck,
   TrendingUp,
-  RotateCcw
+  RotateCcw,
+  ShieldCheck
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+
+import logoImg from '../../assets/logo.png';
 
 export const Sidebar = () => {
   const { user } = useAuth();
@@ -22,6 +25,13 @@ export const Sidebar = () => {
 
   const getLinks = () => {
     switch (role) {
+      case 'ADMIN':
+        return [
+          { to: '/admin/users', label: 'Personnel & Roles', icon: LayoutDashboard },
+          { to: '/admin/depots', label: 'Depots & Fleet Hub', icon: Truck },
+          { to: '/admin/outlets', label: 'Outlet Network', icon: MapPin },
+          { to: '/admin/audit', label: 'Governance & Audit', icon: ShieldCheck }
+        ];
       case 'STORE_MANAGER':
         return [
           { to: '/store/dashboard', label: 'Store Dashboard', icon: LayoutDashboard },
@@ -64,26 +74,23 @@ export const Sidebar = () => {
     }}>
       {/* Brand Header */}
       <div style={{
-        padding: '1.5rem',
+        padding: '1.25rem 1.5rem',
         borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
         display: 'flex',
         alignItems: 'center',
         gap: '0.75rem'
       }}>
-        <div style={{
-          width: '36px',
-          height: '36px',
-          borderRadius: '8px',
-          backgroundColor: '#025E4C',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
-        }}>
-          <Truck size={20} color="#B9E1C9" />
-        </div>
+        <img
+          src={logoImg}
+          alt="WaypointFlow Logo"
+          style={{
+            height: '36px',
+            width: 'auto',
+            objectFit: 'contain'
+          }}
+        />
         <div>
-          <h2 style={{ fontSize: '1.15rem', color: '#FFFFFF', fontWeight: 800, letterSpacing: '-0.02em', margin: 0 }}>
+          <h2 style={{ fontSize: '1.1rem', color: '#FFFFFF', fontWeight: 800, letterSpacing: '-0.02em', margin: 0 }}>
             WaypointFlow
           </h2>
           <span style={{ fontSize: '0.7rem', color: '#B9E1C9', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
