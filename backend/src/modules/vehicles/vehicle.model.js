@@ -14,15 +14,17 @@ const vehicleSchema = new mongoose.Schema({
   },
   weightCapKg: { type: Number, required: true },
   volumeCapM3: { type: Number, required: true },
-  fuelType: { type: String },
-  kmPerL: { type: Number },
-  weeklyFuelQuotaL: { type: Number },
+  fuelType: { type: String, default: "diesel" },
+  kmPerL: { type: Number, default: 4 },
+  weeklyFuelQuotaL: { type: Number, default: 200 },
+  fuelUsedThisWeek: { type: Number, default: 0 },
   depot: { type: String, required: true },
   status: {
     type: String,
-    enum: ["AVAILABLE", "ASSIGNED", "IN_TRANSIT", "IN_WORKSHOP", "UNAVAILABLE"],
+    enum: ["AVAILABLE", "ASSIGNED", "LOADING", "READY", "IN_TRANSIT", "IN_WORKSHOP", "UNAVAILABLE"],
     default: "AVAILABLE"
-  }
+  },
+  assignedDriver: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
 }, { timestamps: true });
 
 vehicleSchema.index({ depot: 1, status: 1, temp: 1 });

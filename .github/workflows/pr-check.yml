@@ -1,13 +1,17 @@
-name: PR Check (Development to Staging)
+name: PR Check (Dev to Stage)
 
 on:
   pull_request:
     branches:
-      - staging
+      - Stage
 
 jobs:
   check-build:
     runs-on: ubuntu-latest
+    
+    # Optional: explicitly state read permission
+    permissions:
+      contents: read
     
     defaults:
       run:
@@ -25,9 +29,5 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      # - name: Build project (if applicable)
-      #   run: npm run build
-
       - name: Run tests
-        # We pass --passWithNoTests so it doesn't fail if you haven't written Jest tests yet
         run: npm test -- --passWithNoTests
