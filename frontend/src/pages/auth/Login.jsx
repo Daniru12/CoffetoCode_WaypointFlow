@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Truck, Lock, Mail, ArrowRight } from 'lucide-react';
+import { Lock, Mail, ArrowRight } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import logoImg from '../../assets/logo.png';
 
 export const Login = () => {
-  const [email, setEmail] = useState('dispatcher@waypoint.lk');
-  const [password, setPassword] = useState('Waypoint2026!');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -26,28 +27,26 @@ export const Login = () => {
     }
   };
 
-  const setRoleDemo = (roleEmail) => {
-    setEmail(roleEmail);
-    setPassword('Waypoint2026!');
-  };
-
   return (
     <div style={{ width: '100%', maxWidth: '440px' }}>
       <div className="wf-card" style={{ padding: '2.5rem 2rem', boxShadow: 'var(--shadow-glass)' }}>
         {/* Brand Header */}
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
           <div style={{
-            width: '54px',
-            height: '54px',
-            borderRadius: '12px',
-            backgroundColor: 'var(--primary-green)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            margin: '0 auto 1rem',
-            boxShadow: '0 4px 12px rgba(2, 94, 76, 0.3)'
+            margin: '0 auto 1rem'
           }}>
-            <Truck size={28} color="#B9E1C9" />
+            <img
+              src={logoImg}
+              alt="WaypointFlow Logo"
+              style={{
+                height: '56px',
+                width: 'auto',
+                objectFit: 'contain'
+              }}
+            />
           </div>
           <h2 style={{ fontSize: '1.65rem', fontWeight: 800, margin: '0 0 0.25rem' }}>WaypointFlow</h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
@@ -111,35 +110,6 @@ export const Login = () => {
             <ArrowRight size={18} />
           </button>
         </form>
-
-        {/* Quick Demo Switcher */}
-        <div style={{
-          marginTop: '2rem',
-          paddingTop: '1.5rem',
-          borderTop: '1px solid var(--border)',
-          textAlign: 'center'
-        }}>
-          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Quick Demo Accounts
-          </span>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginTop: '0.75rem' }}>
-            <button type="button" onClick={() => setRoleDemo('admin@waypoint.lk')} className="btn-secondary" style={{ fontSize: '0.75rem', padding: '0.4rem 0.5rem' }}>
-              Admin
-            </button>
-            <button type="button" onClick={() => setRoleDemo('dispatcher@waypoint.lk')} className="btn-secondary" style={{ fontSize: '0.75rem', padding: '0.4rem 0.5rem' }}>
-              Dispatcher
-            </button>
-            <button type="button" onClick={() => setRoleDemo('store.manager@waypoint.lk')} className="btn-secondary" style={{ fontSize: '0.75rem', padding: '0.4rem 0.5rem' }}>
-              Store Manager
-            </button>
-            <button type="button" onClick={() => setRoleDemo('loader@waypoint.lk')} className="btn-secondary" style={{ fontSize: '0.75rem', padding: '0.4rem 0.5rem' }}>
-              Loader
-            </button>
-            <button type="button" onClick={() => setRoleDemo('driver@waypoint.lk')} className="btn-secondary" style={{ fontSize: '0.75rem', padding: '0.4rem 0.5rem', gridColumn: '1 / -1' }}>
-              Fleet Driver
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );

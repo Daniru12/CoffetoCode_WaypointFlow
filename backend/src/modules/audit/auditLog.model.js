@@ -20,6 +20,10 @@ const auditLogSchema = new mongoose.Schema({
       'VEHICLE_STATUS_CHANGED',
       'RECEIPT_CONFIRMED',
       'ISSUE_REPORTED',
+      'USER_REGISTERED',
+      'USER_UPDATED',
+      'USER_STATUS_CHANGED',
+      'PASSWORD_RESET',
       'OTHER'
     ]
   },
