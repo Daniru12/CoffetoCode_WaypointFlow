@@ -8,6 +8,9 @@ const asyncHandler = require('../../utils/asyncHandler');
 
 const tokenExpiresIn = config.jwt.expiresIn || '24h';
 
+const Vehicle = require('../vehicles/vehicle.model');
+const auditService = require('../../services/audit.service');
+
 const ALLOWED_ROLES = ['ADMIN', 'STORE_MANAGER', 'DISPATCHER', 'LOADER', 'DRIVER'];
 
 /**
@@ -15,7 +18,7 @@ const ALLOWED_ROLES = ['ADMIN', 'STORE_MANAGER', 'DISPATCHER', 'LOADER', 'DRIVER
  * POST /api/v1/auth/register
  */
 const register = asyncHandler(async (req, res) => {
-  const { name, email, password, role, depot, outlet, outletId } = req.body;
+  const { name, email, password, role, depot, outlet, outletId, assignedVehicle } = req.body;
 
   if (!name || !email || !password || !role) {
     return res.status(400).json(new ApiResponse(400, null, 'name, email, password, and role are required'));
@@ -42,8 +45,25 @@ const register = asyncHandler(async (req, res) => {
     depot: depot || null,
     outlet: outlet || null,
     outletId: outletId || null,
+    assignedVehicle: role === 'DRIVER' ? (assignedVehicle || null) : null,
     isActive: true
   });
+
+  if (role === 'DRIVER' && assignedVehicle) {
+    await Vehicle.findByIdAndUpdate(assignedVehicle, { assignedDriver: user._id });
+  }
+
+  if (req.user) {
+    await auditService.log({
+      user: req.user,
+      action: 'USER_REGISTERED',
+      entityType: 'User',
+      entityId: user._id,
+      previousData: null,
+      newData: { name: user.name, email: user.email, role: user.role, depot: user.depot, outletId: user.outletId },
+      reason: `Provisioned new ${user.role} account`
+    });
+  }
 
   const token = jwt.sign(
     {
@@ -63,7 +83,9 @@ const register = asyncHandler(async (req, res) => {
     email: user.email,
     role: user.role,
     depot: user.depot,
-    outlet: user.outlet
+    outlet: user.outlet,
+    outletId: user.outletId,
+    assignedVehicle: user.assignedVehicle
   };
 
   res.status(201).json(new ApiResponse(201, { user: userResponse, token }, 'User registered successfully'));
