@@ -1,4 +1,16 @@
+const os = require('os');
+const path = require('path');
 const multer = require('multer');
+
+// Safety guard: if diskStorage is ever invoked anywhere, ensure destination is /tmp
+const originalDiskStorage = multer.diskStorage;
+multer.diskStorage = function (opts = {}) {
+  const dest = opts.destination;
+  if (!dest || dest === 'uploads' || dest === 'uploads/' || dest === './uploads' || (typeof dest === 'string' && !dest.startsWith('/tmp'))) {
+    opts.destination = path.join(os.tmpdir(), 'uploads');
+  }
+  return originalDiskStorage(opts);
+};
 
 // Memory storage keeps files in memory as Buffer for Supabase upload
 const storage = multer.memoryStorage();

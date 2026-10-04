@@ -2,8 +2,8 @@ const dns = require('dns');
 const mongoose = require('mongoose');
 const config = require('./env');
 
-// Set public DNS servers for resolving SRV records if mongodb+srv is used on Windows
-if (config.mongodb.uri && config.mongodb.uri.startsWith('mongodb+srv://')) {
+// Set public DNS servers for resolving SRV records ONLY if on Windows
+if (process.platform === 'win32' && config.mongodb.uri && config.mongodb.uri.startsWith('mongodb+srv://')) {
   try {
     dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
     const origLookup = dns.lookup;
@@ -44,7 +44,7 @@ const connectDB = async () => {
   if (!cachedPromise) {
     cachedPromise = mongoose
       .connect(config.mongodb.uri, {
-        serverSelectionTimeoutMS: 15000
+        serverSelectionTimeoutMS: 5000
       })
       .then((conn) => {
         console.log(`MongoDB Connected: ${conn.connection.host}`);

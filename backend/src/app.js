@@ -1,3 +1,46 @@
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+// Serverless read-only filesystem guard (Vercel / AWS Lambda)
+// Intercepts mkdirSync & mkdir to redirect write attempts from read-only /var/task to /tmp
+const origMkdirSync = fs.mkdirSync;
+fs.mkdirSync = function (dirPath, options) {
+  try {
+    return origMkdirSync.call(fs, dirPath, options);
+  } catch (err) {
+    if (err.code === 'EROFS' || err.code === 'EACCES') {
+      try {
+        const basename = path.basename(dirPath);
+        return origMkdirSync.call(fs, path.join(os.tmpdir(), basename), options);
+      } catch (fallbackErr) {
+        return undefined;
+      }
+    }
+    throw err;
+  }
+};
+
+const origMkdir = fs.mkdir;
+fs.mkdir = function (dirPath, options, callback) {
+  if (typeof options === 'function') {
+    callback = options;
+    options = {};
+  }
+  return origMkdir.call(fs, dirPath, options, (err, ...args) => {
+    if (err && (err.code === 'EROFS' || err.code === 'EACCES')) {
+      try {
+        const basename = path.basename(dirPath);
+        return origMkdir.call(fs, path.join(os.tmpdir(), basename), options, callback);
+      } catch (fallbackErr) {
+        if (callback) return callback(null);
+        return undefined;
+      }
+    }
+    if (callback) callback(err, ...args);
+  });
+};
+
 const express = require('express');
 const cors = require('cors');
 const config = require('./config/env');
@@ -21,26 +64,20 @@ const allowedOrigins = [...new Set([...defaultOrigins, ...envOrigins])];
 
 app.use(
   cors({
-    origin: (origin, callback) => {
-      if (!origin) return callback(null, true);
-      const isAllowed =
-        allowedOrigins.includes('*') ||
-        allowedOrigins.includes(origin) ||
-        /\.vercel\.app$/.test(origin) ||
-        origin.startsWith('http://localhost');
-      if (isAllowed) return callback(null, true);
-      return callback(new Error(`Not allowed by CORS: ${origin}`));
-    },
-    credentials: true
+    origin: true,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
   })
 );
+app.options('*', cors());
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Serverless DB connection middleware (ensures Mongoose is connected on Vercel)
 app.use(async (req, res, next) => {
-  if (req.path === '/' || req.path === '/health') {
+  if (req.method === 'OPTIONS' || req.path === '/' || req.path === '/health' || req.path.startsWith('/socket.io')) {
     return next();
   }
   try {
@@ -55,6 +92,15 @@ app.use(async (req, res, next) => {
       success: false
     });
   }
+});
+
+// Graceful fallback for socket.io polling requests in serverless environments
+app.use('/socket.io', (req, res) => {
+  res.status(200).json({
+    status: 'serverless_mode',
+    message: 'Socket.IO is inactive on Vercel serverless. Frontend uses periodic sync fallback.',
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Health / status endpoint
