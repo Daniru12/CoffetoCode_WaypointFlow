@@ -58,7 +58,7 @@ app.use(async (req, res, next) => {
 });
 
 // Graceful fallback for socket.io polling requests in serverless environments
-app.all('/socket.io*', (req, res) => {
+app.use('/socket.io', (req, res) => {
   res.status(200).json({
     status: 'serverless_mode',
     message: 'Socket.IO is inactive on Vercel serverless. Frontend uses periodic sync fallback.',
