@@ -28,7 +28,7 @@ const replenishmentPlanSchema = new mongoose.Schema({
   },
   
   // Weekly specific
-  deliveryDays: [{ type: String, enum: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] }],
+  deliveryDays: [{ type: String, enum: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] }],
   
   // Monthly specific
   monthlyScheduleType: { type: String, enum: ['SPECIFIC_DATE', 'SPECIFIC_WEEKDAY'] },
