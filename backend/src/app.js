@@ -29,7 +29,7 @@ app.use(
         /\.vercel\.app$/.test(origin) ||
         origin.startsWith('http://localhost');
       if (isAllowed) return callback(null, true);
-      return callback(new Error(`Not allowed by CORS: ${origin}`));
+      return callback(null, false);
     },
     credentials: true
   })
@@ -40,7 +40,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Serverless DB connection middleware (ensures Mongoose is connected on Vercel)
 app.use(async (req, res, next) => {
-  if (req.path === '/' || req.path === '/health' || req.path.startsWith('/socket.io')) {
+  if (req.method === 'OPTIONS' || req.path === '/' || req.path === '/health' || req.path.startsWith('/socket.io')) {
     return next();
   }
   try {
