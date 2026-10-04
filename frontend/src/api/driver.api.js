@@ -4,6 +4,8 @@ export const driverApi = {
   getRoutesToday: () => api.get('/driver/routes/today'),
   getTripById: (tripId) => api.get(`/driver/trips/${tripId}`),
   getTripStops: (tripId) => api.get(`/driver/trips/${tripId}/stops`),
+  startTrip: (tripId) => api.post(`/trips/${tripId}/start`),
+  completeTrip: (tripId) => api.post(`/trips/${tripId}/complete`),
   arriveDelivery: (deliveryId) => api.post(`/deliveries/${deliveryId}/arrive`),
   completeDelivery: (deliveryId, data) => api.post(`/deliveries/${deliveryId}/complete`, data),
   failDelivery: (deliveryId, data) => api.post(`/deliveries/${deliveryId}/fail`, data),
@@ -24,5 +26,8 @@ export const driverApi = {
   reportVehicleIssue: (formData) =>
     api.post('/driver/vehicle-issue', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
-    })
+    }),
+  getProfile: () => api.get('/driver/profile'),
+  updateProfile: (data) => api.put('/driver/profile', data),
+  changePassword: (data) => api.put('/auth/password', data)
 };

@@ -43,8 +43,61 @@ const getVehicleById = asyncHandler(async (req, res) => {
  * POST /api/v1/vehicles
  */
 const createVehicle = asyncHandler(async (req, res) => {
-  const vehicle = await Vehicle.create(req.body);
-  res.status(201).json(new ApiResponse(201, vehicle, 'Vehicle created successfully'));
+  const {
+    vehicleId,
+    type,
+    temp,
+    weightCapKg,
+    volumeCapM3,
+    fuelType = 'diesel',
+    kmPerL = 4,
+    weeklyFuelQuotaL = 200,
+    depot,
+    status = 'AVAILABLE',
+    assignedDriver
+  } = req.body;
+
+  if (!vehicleId || !type || !temp || !weightCapKg || !volumeCapM3 || !depot) {
+    return res.status(400).json(
+      new ApiResponse(400, null, 'vehicleId, type, temp, weightCapKg, volumeCapM3, and depot are required')
+    );
+  }
+
+  const existing = await Vehicle.findOne({ vehicleId: vehicleId.trim() });
+  if (existing) {
+    return res.status(409).json(new ApiResponse(409, null, `Vehicle ID '${vehicleId}' already exists`));
+  }
+
+  const vehicle = await Vehicle.create({
+    vehicleId: vehicleId.trim().toUpperCase(),
+    type,
+    temp,
+    weightCapKg: Number(weightCapKg),
+    volumeCapM3: Number(volumeCapM3),
+    fuelType,
+    kmPerL: Number(kmPerL),
+    weeklyFuelQuotaL: Number(weeklyFuelQuotaL),
+    fuelUsedThisWeek: 0,
+    depot,
+    status,
+    assignedDriver: assignedDriver || null
+  });
+
+  if (assignedDriver) {
+    await User.findByIdAndUpdate(assignedDriver, { assignedVehicle: vehicle._id });
+  }
+
+  await auditService.log({
+    user: req.user,
+    action: 'OTHER',
+    entityType: 'Vehicle',
+    entityId: vehicle._id,
+    newData: { vehicleId: vehicle.vehicleId, depot: vehicle.depot, type: vehicle.type, temp: vehicle.temp },
+    reason: `New fleet vehicle registered: ${vehicle.vehicleId}`
+  });
+
+  const populated = await Vehicle.findById(vehicle._id).populate('assignedDriver', 'name email');
+  res.status(201).json(new ApiResponse(201, populated, 'Vehicle registered successfully'));
 });
 
 /**

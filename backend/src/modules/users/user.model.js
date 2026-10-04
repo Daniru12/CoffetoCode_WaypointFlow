@@ -13,6 +13,15 @@ const userSchema = new mongoose.Schema({
   outletId: { type: String },
   depot: { type: String },
   assignedVehicle: { type: mongoose.Schema.Types.ObjectId, ref: 'Vehicle' },
+  licenseNumber: { type: String },
+  licenseCategory: {
+    type: String,
+    enum: ["LIGHT_VEHICLE", "HEAVY_COMMERCIAL", "ARTICULATED", "MOTOR_COACH"],
+    default: "HEAVY_COMMERCIAL"
+  },
+  licenseExpiryDate: { type: Date },
+  phone: { type: String },
+  emergencyContact: { type: String },
   isActive: { type: Boolean, default: true },
   lastLogin: { type: Date }
 }, { timestamps: true });

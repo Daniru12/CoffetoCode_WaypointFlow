@@ -36,7 +36,7 @@ const auditService = require('../../services/audit.service');
 
 const updateUser = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { name, role, depot, outlet, outletId, assignedVehicle, isActive } = req.body;
+  const { name, role, depot, outlet, outletId, assignedVehicle, isActive, licenseNumber, licenseCategory, licenseExpiryDate, phone, emergencyContact } = req.body;
 
   const user = await User.findById(id);
   if (!user) {
@@ -52,6 +52,11 @@ const updateUser = asyncHandler(async (req, res) => {
   if (outlet !== undefined) user.outlet = outlet || null;
   if (outletId !== undefined) user.outletId = outletId || null;
   if (isActive !== undefined) user.isActive = isActive;
+  if (licenseNumber !== undefined) user.licenseNumber = licenseNumber;
+  if (licenseCategory !== undefined) user.licenseCategory = licenseCategory;
+  if (licenseExpiryDate !== undefined) user.licenseExpiryDate = licenseExpiryDate ? new Date(licenseExpiryDate) : null;
+  if (phone !== undefined) user.phone = phone;
+  if (emergencyContact !== undefined) user.emergencyContact = emergencyContact;
 
   if (assignedVehicle !== undefined) {
     const nextVehicleId = assignedVehicle || null;

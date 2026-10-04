@@ -47,6 +47,7 @@ import { CurrentStop } from './pages/driver/CurrentStop';
 import { DriverPOD } from './pages/driver/POD';
 import { DriverIncident } from './pages/driver/Incident';
 import { OfflineSync } from './pages/driver/OfflineSync';
+import { DriverProfile } from './pages/driver/Profile';
 
 // Styles
 import './styles/variables.css';
@@ -160,6 +161,7 @@ export const App = () => {
               <Route path="deliveries/:deliveryId/pod" element={<DriverPOD />} />
               <Route path="deliveries/:deliveryId/incident" element={<DriverIncident />} />
               <Route path="sync" element={<OfflineSync />} />
+              <Route path="profile" element={<DriverProfile />} />
               <Route index element={<Navigate to="route" replace />} />
             </Route>
 

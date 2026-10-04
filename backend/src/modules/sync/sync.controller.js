@@ -16,12 +16,37 @@ const auditService = require('../../services/audit.service');
  */
 const bootstrapOfflineData = asyncHandler(async (req, res) => {
   const driverId = req.user._id;
+  const userDepot = req.user.depot ? req.user.depot.trim() : null;
+  const userAssignedVehicle = req.user.assignedVehicle;
 
-  // Active trips assigned to driver
-  const trips = await Trip.find({
-    driver: driverId,
+  const driverQuery = [{ driver: driverId }];
+  if (userAssignedVehicle) {
+    driverQuery.push({ vehicle: userAssignedVehicle });
+  }
+
+  // Active trips assigned to driver or their vehicle
+  let trips = await Trip.find({
+    $or: driverQuery,
     status: { $in: ['READY', 'IN_PROGRESS', 'IN_TRANSIT', 'READY_FOR_LOADING'] }
   }).populate('vehicle plan');
+
+  // Fallback to unassigned trips for depot
+  if (trips.length === 0) {
+    const unassignedTrips = await Trip.find({
+      driver: null,
+      status: { $in: ['READY', 'IN_PROGRESS', 'IN_TRANSIT', 'READY_FOR_LOADING'] }
+    }).populate('vehicle plan');
+
+    const depotMatches = unassignedTrips.filter(t => {
+      if (!userDepot) return true;
+      const vDepot = t.vehicle?.depot;
+      const pDepot = t.plan?.depot;
+      return (vDepot && vDepot.toLowerCase() === userDepot.toLowerCase()) ||
+             (pDepot && pDepot.toLowerCase() === userDepot.toLowerCase());
+    });
+
+    trips = depotMatches.length > 0 ? depotMatches : unassignedTrips;
+  }
 
   const tripIds = trips.map(t => t._id);
 

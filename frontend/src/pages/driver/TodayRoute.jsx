@@ -7,15 +7,19 @@ import { Card } from '../../components/common/Card';
 import { Badge } from '../../components/common/Badge';
 import { LoadingSpinner } from '../../components/common/LoadingSpinner';
 import { EmptyState } from '../../components/common/EmptyState';
-import { Truck, Compass, MapPin, CheckCircle, ArrowRight, DownloadCloud } from 'lucide-react';
+import { Truck, Compass, MapPin, CheckCircle, ArrowRight, DownloadCloud, Navigation, Map } from 'lucide-react';
 import { useOffline } from '../../hooks/useOffline';
 import { useSyncQueue } from '../../hooks/useSyncQueue';
+import { useAuth } from '../../hooks/useAuth';
 import { OfflineBanner } from '../../components/driver/OfflineBanner';
+import { DriverRouteMap } from '../../components/driver/DriverRouteMap';
 
 export const TodayRoute = () => {
+  const { user } = useAuth();
   const [trips, setTrips] = useState([]);
   const [loading, setLoading] = useState(true);
   const [cached, setCached] = useState(false);
+  const [previewTripId, setPreviewTripId] = useState(null);
   const { isOffline } = useOffline();
   const { pendingCount, syncStatus, triggerSync } = useSyncQueue();
   const navigate = useNavigate();
@@ -71,6 +75,82 @@ export const TodayRoute = () => {
         </span>
       </div>
 
+      {/* Driver Info Profile Badge */}
+      <div style={{
+        backgroundColor: '#FFFFFF',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius-lg)',
+        padding: '0.85rem 1rem',
+        marginBottom: '1rem',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '0.5rem'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+          <div style={{
+            width: '36px',
+            height: '36px',
+            borderRadius: '50%',
+            backgroundColor: '#025E4C',
+            color: '#FFFFFF',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontWeight: 800,
+            fontSize: '0.9rem'
+          }}>
+            {user?.name?.charAt(0) || 'D'}
+          </div>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: '0.95rem', margin: 0 }}>{user?.name || 'Fleet Driver'}</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+              Depot: <strong>{user?.depot || 'Central Hub'}</strong> • Status: <span style={{ color: '#059669', fontWeight: 700 }}>On Duty</span>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          {user?.assignedVehicle && (
+            <div style={{
+              backgroundColor: '#F1F5F9',
+              padding: '0.35rem 0.65rem',
+              borderRadius: '6px',
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              color: 'var(--primary-green)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.35rem'
+            }}>
+              <Truck size={14} />
+              <span>Vehicle: {user.assignedVehicle.vehicleId || 'Linked'}</span>
+            </div>
+          )}
+
+          <button
+            onClick={() => navigate('/driver/profile')}
+            style={{
+              padding: '0.35rem 0.75rem',
+              borderRadius: '6px',
+              border: '1px solid #CBD5E1',
+              backgroundColor: '#FFFFFF',
+              color: 'var(--text-primary)',
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.35rem'
+            }}
+          >
+            Manage Profile
+            <ArrowRight size={12} />
+          </button>
+        </div>
+      </div>
+
       <OfflineBanner
         isOffline={isOffline}
         pendingCount={pendingCount}
@@ -99,7 +179,7 @@ export const TodayRoute = () => {
       {trips.length === 0 ? (
         <EmptyState
           title="No active route assigned today"
-          message="When the dispatcher schedules and publishes a delivery run for your vehicle, stops will appear here."
+          message={`No published delivery run found for ${user?.name || 'your profile'} at ${user?.depot || 'your depot'}. When the dispatcher schedules and releases a trip run for your vehicle or depot, it will appear here.`}
         />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -156,13 +236,76 @@ export const TodayRoute = () => {
               </div>
 
               {/* Start / View Stops CTA */}
-              <button
-                className="btn-primary driver-action-btn"
-                onClick={() => navigate(`/driver/trips/${trip._id}/stops`)}
-              >
-                <span>Navigate & View Stops</span>
-                <ArrowRight size={20} />
-              </button>
+              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+                {(trip.status === 'READY' || trip.status === 'READY_FOR_LOADING') && (
+                  <button
+                    className="btn-primary driver-action-btn"
+                    style={{ flex: 1, backgroundColor: '#025E4C' }}
+                    onClick={async () => {
+                      try {
+                        await driverApi.startTrip(trip._id);
+                        loadRoute();
+                      } catch (e) {
+                        alert(e.message || 'Failed to start trip run');
+                      }
+                    }}
+                  >
+                    <Compass size={20} />
+                    <span>Start Delivery Run</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  className="btn-secondary driver-action-btn"
+                  style={{
+                    flex: 1,
+                    backgroundColor: previewTripId === trip._id ? '#EFF6FF' : '#FFFFFF',
+                    borderColor: previewTripId === trip._id ? '#2563EB' : 'var(--border)',
+                    color: previewTripId === trip._id ? '#1D4ED8' : 'var(--text-primary)'
+                  }}
+                  onClick={() => setPreviewTripId(prev => prev === trip._id ? null : trip._id)}
+                >
+                  <Map size={18} />
+                  <span>{previewTripId === trip._id ? 'Hide Route Map' : 'Preview Route Map'}</span>
+                </button>
+
+                <button
+                  className="btn-secondary driver-action-btn"
+                  style={{ flex: 1 }}
+                  onClick={() => navigate(`/driver/trips/${trip._id}/stops`)}
+                >
+                  <span>In-Cab Cockpit ({trip.orders?.length || 0} Drops)</span>
+                  <ArrowRight size={20} />
+                </button>
+              </div>
+
+              {/* Collapsible Interactive Map Preview */}
+              {previewTripId === trip._id && (
+                <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.65rem' }}>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <Navigation size={16} color="var(--primary-green)" />
+                      <span>Day Route Geographic Overview ({trip.orders?.length || 0} sequenced stops)</span>
+                    </div>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                      Depot: <strong>{trip.vehicle?.depot || user?.depot || 'Peliyagoda'}</strong>
+                    </span>
+                  </div>
+
+                  <DriverRouteMap
+                    stops={(trip.orders || []).map((o, idx) => ({
+                      _id: o.order?._id || `stop-${idx}`,
+                      stopSequence: idx + 1,
+                      status: trip.status === 'COMPLETED' ? 'DELIVERED' : 'PENDING',
+                      outlet: o.order?.outlet || {},
+                      order: o.order || {}
+                    }))}
+                    depot={trip.vehicle?.depot || user?.depot || 'Peliyagoda'}
+                    height="320px"
+                  />
+                </div>
+              )}
             </Card>
           ))}
         </div>
