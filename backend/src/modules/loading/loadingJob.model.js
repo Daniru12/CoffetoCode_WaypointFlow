@@ -31,7 +31,9 @@ const loadingJobSchema = new mongoose.Schema({
     }
   ],
   startedAt: { type: Date },
-  completedAt: { type: Date }
+  completedAt: { type: Date },
+  isStockTransfer: { type: Boolean, default: false },
+  stockTransferNote: { type: String }
 }, { timestamps: true });
 
 loadingJobSchema.index({ trip: 1 });

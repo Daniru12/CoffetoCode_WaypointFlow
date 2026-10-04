@@ -20,6 +20,8 @@ export const LoaderJobs = () => {
     if (socket) {
       socket.on('plan.published', () => loadJobs());
       socket.on('loading.completed', () => loadJobs());
+      socket.on('stock.transfer.requested', () => loadJobs());
+      socket.on('route.updated', () => loadJobs());
     }
   }, [socket]);
 
@@ -88,9 +90,22 @@ export const LoaderJobs = () => {
                   <Truck size={24} />
                 </div>
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                     <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0 }}>{job.vehicle?.vehicleId}</h3>
                     <Badge status={job.status} />
+                    {(job.isStockTransfer || job.stockTransferNote || job.trip?.reassignmentTemplate?.stockTransferNote) && (
+                      <span style={{
+                        padding: '0.2rem 0.5rem',
+                        borderRadius: '6px',
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        backgroundColor: '#FEF3C7',
+                        color: '#92400E',
+                        border: '1px solid #FDE68A'
+                      }}>
+                        🔄 Emergency Stock Transfer
+                      </span>
+                    )}
                   </div>
                   <span style={{ fontSize: '0.825rem', color: 'var(--text-secondary)' }}>
                     Ref: <strong>{job.loadingJobRef}</strong> • Trip: {job.trip?.tripRef} (Shift #{job.trip?.tripNumber || 1})
@@ -98,6 +113,19 @@ export const LoaderJobs = () => {
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
                     {job.items?.length || 0} consignment items • {job.vehicle?.type} ({job.vehicle?.temp})
                   </div>
+                  {(job.stockTransferNote || job.trip?.reassignmentTemplate?.stockTransferNote) && (
+                    <div style={{
+                      marginTop: '0.5rem',
+                      padding: '0.4rem 0.6rem',
+                      borderRadius: '6px',
+                      backgroundColor: '#FFFBEB',
+                      borderLeft: '3px solid #D97706',
+                      fontSize: '0.75rem',
+                      color: '#78350F'
+                    }}>
+                      <strong>Dock Transfer Note:</strong> {job.stockTransferNote || job.trip?.reassignmentTemplate?.stockTransferNote}
+                    </div>
+                  )}
                 </div>
               </div>
 

@@ -829,7 +829,7 @@ sequenceDiagram
     actor DR as Driver
     actor DR2 as Replacement Driver
 
-    Note over SM,LM: Phase 1: Stock Shortage & Replenishment
+    Note over SM,LM: Phase 1: Stock Shortage and Replenishment
     SM->>LM: 1. Requests missing goods (POST /inventory/stock-request)
     LM->>LM: 2. Approves request in /loader/inventory
     LM->>SM: 3. Dispatches goods (Deducts Main Warehouse stock)
@@ -837,28 +837,28 @@ sequenceDiagram
     SM->>DP: 5. Submits confirmed retail orders (/store/orders/create)
 
     Note over DP,LM: Phase 2: Delivery Intelligence Auto-Plan
-    DP->>DP: 6. Clicks "Auto-Generate Plan" in /dispatcher/planning
+    DP->>DP: 6. Clicks Auto-Generate Plan in /dispatcher/planning
     Note right of DP: Solves 7 Constraints (Reefer, Weight, Volume, Van, Fuel, Time, Windows)<br/>Calculates Stop ETAs (+25m depot, +35m stop)<br/>Generates Reverse LIFO Dock Manifest
-    DP->>DP: 7. 1-Click "Approve All Trips" (VALID status)
-    DP->>LM: 8. Clicks "Publish Plan & Release to Dock"
+    DP->>DP: 7. 1-Click Approve All Trips (VALID status)
+    DP->>LM: 8. Clicks Publish Plan and Release to Dock
     Note over LM,DR: Phase 3: Warehouse Loading Bay Signoff
-    LM->>LM: 9. Opens /loader/jobs & packing checklist (/loader/manifest/:id)
+    LM->>LM: 9. Opens /loader/jobs and packing checklist (/loader/manifest/:id)
     LM->>LM: 10. Packs cargo in strict reverse LIFO sequence (Stop N first, Stop 1 at doors)
     LM->>DR: 11. Marks job ready for departure
 
-    Note over DR,SM: Phase 4: Driver In-Cab Execution & POD
-    DR->>DR: 12. Opens /driver/route & cockpit (/driver/trips/:id/stops)
+    Note over DR,SM: Phase 4: Driver In-Cab Execution and POD
+    DR->>DR: 12. Opens /driver/route and cockpit (/driver/trips/:id/stops)
     DR->>DR: 13. Navigates via embedded Leaflet map / Google Maps / Waze
     DR->>SM: 14. Completes Stop 1 with digital POD customer signature (/driver/deliveries/:id/pod)
 
-    Note over DR,DR2: Phase 5: Incident & Dynamic Auto-Reassignment
-    DR->>DP: 15. Vehicle breaks down; reports in /driver/issue with "Cannot Continue"
-    Note right of DP: Trip flagged INTERRUPTED & atRisk=true<br/>Remaining stops marked AT_RISK<br/>Solver finds optimal backup unit & driver<br/>Calculates new ETAs (+30m response buffer)<br/>Generates Stock Transfer Note
-    DP->>DP: 16. Reviews "Auto-Reassign Template Panel" in /dispatcher/planning
-    DP->>DR2: 17. 1-Click "Approve Reassignment"
+    Note over DR,DR2: Phase 5: Incident and Dynamic Auto-Reassignment
+    DR->>DP: 15. Vehicle breaks down - reports in /driver/issue with Cannot Continue
+    Note right of DP: Trip flagged INTERRUPTED and atRisk=true<br/>Remaining stops marked AT_RISK<br/>Solver finds optimal backup unit and driver<br/>Calculates new ETAs (+30m response buffer)<br/>Generates Stock Transfer Note
+    DP->>DP: 16. Reviews Auto-Reassign Template Panel in /dispatcher/planning
+    DP->>DR2: 17. 1-Click Approve Reassignment
     DP->>LM: 18. Emits emergency stock transfer instructions to Dock
-    LM->>LM: 19. Sees "Emergency Stock Transfer" banner in /loader/jobs & transfers cargo
-    DR2->>SM: 20. Replacement driver receives updated route; completes remaining stops
+    LM->>LM: 19. Sees Emergency Stock Transfer banner in /loader/jobs and transfers cargo
+    DR2->>SM: 20. Replacement driver receives updated route - completes remaining stops
 ```
 
 ---

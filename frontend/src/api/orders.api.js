@@ -15,5 +15,6 @@ export const ordersApi = {
   createReplenishmentPlan: (data) => api.post('/store/replenishment-plans', data),
   updateReplenishmentPlan: (id, data) => api.put(`/store/replenishment-plans/${id}`, data),
   deleteReplenishmentPlan: (id) => api.delete(`/store/replenishment-plans/${id}`),
+  generateOrdersFromPlan: (planId, data) => api.post(`/store/replenishment-plans/${planId}/generate-orders`, data),
 };
 
