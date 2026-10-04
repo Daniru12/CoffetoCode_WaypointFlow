@@ -73,6 +73,36 @@ export const MobileNav = () => {
         <span>Sync Queue</span>
       </NavLink>
 
+      <NavLink
+        to="/driver/profile"
+        style={({ isActive }) => ({
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '2px',
+          color: isActive ? 'var(--primary-green)' : '#64748B',
+          fontSize: '0.75rem',
+          fontWeight: isActive ? 700 : 500
+        })}
+      >
+        <AlertTriangle size={0} style={{ display: 'none' }} />
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="22"
+          height="22"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+          <circle cx="12" cy="7" r="4" />
+        </svg>
+        <span>Driver Profile</span>
+      </NavLink>
+
       <button
         onClick={logout}
         style={{
@@ -82,7 +112,10 @@ export const MobileNav = () => {
           gap: '2px',
           color: '#64748B',
           fontSize: '0.75rem',
-          fontWeight: 500
+          fontWeight: 500,
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer'
         }}
       >
         <LogOut size={22} />

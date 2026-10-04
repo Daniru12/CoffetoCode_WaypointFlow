@@ -18,7 +18,21 @@ const ALLOWED_ROLES = ['ADMIN', 'STORE_MANAGER', 'DISPATCHER', 'LOADER', 'DRIVER
  * POST /api/v1/auth/register
  */
 const register = asyncHandler(async (req, res) => {
-  const { name, email, password, role, depot, outlet, outletId, assignedVehicle } = req.body;
+  const {
+    name,
+    email,
+    password,
+    role,
+    depot,
+    outlet,
+    outletId,
+    assignedVehicle,
+    licenseNumber,
+    licenseCategory,
+    licenseExpiryDate,
+    phone,
+    emergencyContact
+  } = req.body;
 
   if (!name || !email || !password || !role) {
     return res.status(400).json(new ApiResponse(400, null, 'name, email, password, and role are required'));
@@ -46,6 +60,11 @@ const register = asyncHandler(async (req, res) => {
     outlet: outlet || null,
     outletId: outletId || null,
     assignedVehicle: role === 'DRIVER' ? (assignedVehicle || null) : null,
+    licenseNumber: role === 'DRIVER' ? (licenseNumber || null) : null,
+    licenseCategory: role === 'DRIVER' ? (licenseCategory || 'HEAVY_COMMERCIAL') : null,
+    licenseExpiryDate: (role === 'DRIVER' && licenseExpiryDate) ? new Date(licenseExpiryDate) : null,
+    phone: phone || null,
+    emergencyContact: emergencyContact || null,
     isActive: true
   });
 

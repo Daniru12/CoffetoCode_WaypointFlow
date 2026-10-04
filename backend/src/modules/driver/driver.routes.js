@@ -6,6 +6,8 @@ const upload = require('../../middlewares/upload.middleware');
 
 router.use(authenticate);
 
+router.get('/profile', deliveryController.getDriverProfile);
+router.put('/profile', deliveryController.updateDriverProfile);
 router.get('/routes/today', deliveryController.getDriverRoutesToday);
 router.get('/trips/:tripId', deliveryController.getDriverTripById);
 router.get('/trips/:tripId/stops', deliveryController.getTripStops);

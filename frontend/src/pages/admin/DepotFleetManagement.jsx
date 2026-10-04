@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Building2, Truck, Gauge, Wrench, AlertTriangle, CheckCircle,
-  Filter, Search, User, Fuel, ShieldCheck, RefreshCw, X, ChevronRight
+  Filter, Search, User, Fuel, ShieldCheck, RefreshCw, X, ChevronRight, Plus
 } from 'lucide-react';
 import { adminApi } from '../../api/admin.api';
 import { usersApi } from '../../api/users.api';
@@ -36,6 +36,23 @@ export const DepotFleetManagement = () => {
     weeklyFuelQuotaL: 200,
     fuelUsedThisWeek: 0
   });
+
+  // Provision New Fleet Vehicle Modal
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newVehicleForm, setNewVehicleForm] = useState({
+    vehicleId: '',
+    type: 'van',
+    temp: 'reefer',
+    weightCapKg: 1500,
+    volumeCapM3: 8,
+    fuelType: 'diesel',
+    kmPerL: 7.5,
+    weeklyFuelQuotaL: 180,
+    depot: 'Peliyagoda',
+    assignedDriver: '',
+    status: 'AVAILABLE'
+  });
+
   const [submitting, setSubmitting] = useState(false);
   const [actionNotice, setActionNotice] = useState(null);
 
@@ -93,6 +110,48 @@ export const DepotFleetManagement = () => {
     }
   };
 
+  const handleCreateVehicle = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      await adminApi.createVehicle({
+        vehicleId: newVehicleForm.vehicleId,
+        type: newVehicleForm.type,
+        temp: newVehicleForm.temp,
+        weightCapKg: Number(newVehicleForm.weightCapKg),
+        volumeCapM3: Number(newVehicleForm.volumeCapM3),
+        fuelType: newVehicleForm.fuelType,
+        kmPerL: Number(newVehicleForm.kmPerL),
+        weeklyFuelQuotaL: Number(newVehicleForm.weeklyFuelQuotaL),
+        depot: newVehicleForm.depot,
+        status: newVehicleForm.status,
+        assignedDriver: newVehicleForm.assignedDriver || null
+      });
+
+      setShowAddModal(false);
+      setNewVehicleForm({
+        vehicleId: '',
+        type: 'van',
+        temp: 'reefer',
+        weightCapKg: 1500,
+        volumeCapM3: 8,
+        fuelType: 'diesel',
+        kmPerL: 7.5,
+        weeklyFuelQuotaL: 180,
+        depot: 'Peliyagoda',
+        assignedDriver: '',
+        status: 'AVAILABLE'
+      });
+      await loadData();
+      setActionNotice({ type: 'success', text: `New fleet vehicle registered successfully.` });
+      setTimeout(() => setActionNotice(null), 4000);
+    } catch (err) {
+      alert(err?.response?.data?.message || 'Failed to register new vehicle.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   // Metrics computation
   const peliyagodaVehicles = vehicles.filter(v => v.depot === 'Peliyagoda');
   const kandyVehicles = vehicles.filter(v => v.depot === 'Kandy');
@@ -131,25 +190,42 @@ export const DepotFleetManagement = () => {
           </div>
         </div>
 
-        <button
-          onClick={loadData}
-          style={{
-            padding: '0.55rem 0.9rem',
-            border: '1.5px solid var(--border)',
-            borderRadius: '8px',
-            backgroundColor: '#FFFFFF',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.4rem',
-            fontSize: '0.85rem',
-            color: 'var(--text-secondary)',
-            fontWeight: 600
-          }}
-        >
-          <RefreshCw size={15} />
-          <span>Refresh Fleet</span>
-        </button>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="btn-primary"
+            style={{
+              padding: '0.55rem 1rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              fontSize: '0.85rem'
+            }}
+          >
+            <Plus size={16} />
+            <span>+ Provision Vehicle</span>
+          </button>
+
+          <button
+            onClick={loadData}
+            style={{
+              padding: '0.55rem 0.9rem',
+              border: '1.5px solid var(--border)',
+              borderRadius: '8px',
+              backgroundColor: '#FFFFFF',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              fontSize: '0.85rem',
+              color: 'var(--text-secondary)',
+              fontWeight: 600
+            }}
+          >
+            <RefreshCw size={15} />
+            <span>Refresh Fleet</span>
+          </button>
+        </div>
       </div>
 
       {actionNotice && (
@@ -632,6 +708,290 @@ export const DepotFleetManagement = () => {
                   disabled={submitting}
                 >
                   {submitting ? 'Updating...' : 'Save Unit Settings'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Provision New Vehicle Modal */}
+      {showAddModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.6)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '1rem'
+        }}>
+          <div style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: '16px',
+            width: '100%',
+            maxWidth: '560px',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+            overflow: 'hidden'
+          }}>
+            <div style={{
+              padding: '1.25rem 1.5rem',
+              borderBottom: '1px solid var(--border)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <div>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                  Provision Fleet Vehicle
+                </h3>
+                <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0 }}>
+                  Register a new transport asset into the Waypoint central fleet registry.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowAddModal(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateVehicle} style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
+                    Vehicle ID / Plate *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. VEH061 or WP-VAN-09"
+                    value={newVehicleForm.vehicleId}
+                    onChange={(e) => setNewVehicleForm(prev => ({ ...prev, vehicleId: e.target.value }))}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '8px',
+                      border: '1.5px solid var(--border)',
+                      fontSize: '0.875rem'
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
+                    Operating Depot *
+                  </label>
+                  <select
+                    value={newVehicleForm.depot}
+                    onChange={(e) => setNewVehicleForm(prev => ({ ...prev, depot: e.target.value }))}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '8px',
+                      border: '1.5px solid var(--border)',
+                      fontSize: '0.875rem'
+                    }}
+                  >
+                    <option value="Peliyagoda">Peliyagoda Central</option>
+                    <option value="Kandy">Kandy Regional Hub</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
+                    Vehicle Type *
+                  </label>
+                  <select
+                    value={newVehicleForm.type}
+                    onChange={(e) => {
+                      const t = e.target.value;
+                      setNewVehicleForm(prev => ({
+                        ...prev,
+                        type: t,
+                        weightCapKg: t === 'van' ? 1500 : 5000,
+                        volumeCapM3: t === 'van' ? 8 : 24,
+                        kmPerL: t === 'van' ? 7.5 : 4.0
+                      }));
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '8px',
+                      border: '1.5px solid var(--border)',
+                      fontSize: '0.875rem'
+                    }}
+                  >
+                    <option value="van">Van (Access-friendly, 1.5-1.8t)</option>
+                    <option value="truck">Heavy Truck (Standard, 5-6t)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
+                    Temperature Regimen *
+                  </label>
+                  <select
+                    value={newVehicleForm.temp}
+                    onChange={(e) => setNewVehicleForm(prev => ({ ...prev, temp: e.target.value }))}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '8px',
+                      border: '1.5px solid var(--border)',
+                      fontSize: '0.875rem'
+                    }}
+                  >
+                    <option value="reefer">Reefer (Cold Chain / Chilled Dairy & Produce)</option>
+                    <option value="ambient">Ambient (Dry Cargo / Style & Tech)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
+                    Payload Cap (kg) *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min="500"
+                    max="15000"
+                    value={newVehicleForm.weightCapKg}
+                    onChange={(e) => setNewVehicleForm(prev => ({ ...prev, weightCapKg: e.target.value }))}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '8px',
+                      border: '1.5px solid var(--border)',
+                      fontSize: '0.875rem'
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
+                    Volume Cap (m³) *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min="3"
+                    max="50"
+                    step="0.5"
+                    value={newVehicleForm.volumeCapM3}
+                    onChange={(e) => setNewVehicleForm(prev => ({ ...prev, volumeCapM3: e.target.value }))}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '8px',
+                      border: '1.5px solid var(--border)',
+                      fontSize: '0.875rem'
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
+                    Fuel Quota (L/week)
+                  </label>
+                  <input
+                    type="number"
+                    min="50"
+                    max="1000"
+                    value={newVehicleForm.weeklyFuelQuotaL}
+                    onChange={(e) => setNewVehicleForm(prev => ({ ...prev, weeklyFuelQuotaL: e.target.value }))}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '8px',
+                      border: '1.5px solid var(--border)',
+                      fontSize: '0.875rem'
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
+                    Efficiency (km/L)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="1"
+                    max="20"
+                    value={newVehicleForm.kmPerL}
+                    onChange={(e) => setNewVehicleForm(prev => ({ ...prev, kmPerL: e.target.value }))}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '8px',
+                      border: '1.5px solid var(--border)',
+                      fontSize: '0.875rem'
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
+                  Assign Primary Fleet Driver (Optional)
+                </label>
+                <select
+                  value={newVehicleForm.assignedDriver}
+                  onChange={(e) => setNewVehicleForm(prev => ({ ...prev, assignedDriver: e.target.value }))}
+                  style={{
+                    width: '100%',
+                    padding: '0.65rem 0.85rem',
+                    borderRadius: '8px',
+                    border: '1.5px solid var(--border)',
+                    fontSize: '0.875rem'
+                  }}
+                >
+                  <option value="">Leave Unassigned (Pool Unit)</option>
+                  {drivers
+                    .filter(d => !d.depot || d.depot === newVehicleForm.depot)
+                    .map(d => (
+                      <option key={d._id} value={d._id}>
+                        {d.name} ({d.email})
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  style={{
+                    flex: 1,
+                    padding: '0.75rem',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border)',
+                    backgroundColor: '#F8FAFC',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  style={{ flex: 1, padding: '0.75rem' }}
+                  disabled={submitting}
+                >
+                  {submitting ? 'Registering...' : 'Provision Vehicle'}
                 </button>
               </div>
             </form>

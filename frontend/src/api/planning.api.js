@@ -7,6 +7,7 @@ export const planningApi = {
   getPlanById: (id) => api.get(`/plans/${id}`),
   validatePlan: (id) => api.post(`/plans/${id}/validate`),
   publishPlan: (id) => api.post(`/plans/${id}/publish`),
+  autoAllocatePlan: (id) => api.post(`/plans/${id}/auto-allocate`),
   getUnallocatedOrders: (id) => api.get(`/plans/${id}/unallocated-orders`),
 
   // Allocations & Constraints
@@ -27,5 +28,10 @@ export const planningApi = {
   // Dispatcher Dashboard & Alerts
   getDispatcherDashboard: (params) => api.get('/dispatcher/dashboard', { params }),
   getDispatcherAlerts: () => api.get('/dispatcher/alerts'),
-  getCriticalIncidents: () => api.get('/dispatcher/critical-incidents')
+  getCriticalIncidents: () => api.get('/dispatcher/critical-incidents'),
+
+  // Trip Sequence & Stop Management
+  reorderTripStops: (tripId, stopOrderIds) => api.patch(`/trips/${tripId}/reorder-stops`, { stopOrderIds }),
+  unassignTripOrder: (tripId, orderId) => api.post(`/trips/${tripId}/unassign-order`, { orderId }),
+  assignTripDriver: (tripId, driverId) => api.post(`/trips/${tripId}/assign-driver`, { driverId })
 };

@@ -4,7 +4,9 @@ import L from 'leaflet';
 export const LiveMap = ({ vehicles = [], outlets = [], center = [6.9271, 79.8612], zoom = 12 }) => {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
+  const markersLayerRef = useRef(null);
 
+  // Initialize Map
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
@@ -14,17 +16,31 @@ export const LiveMap = ({ vehicles = [], outlets = [], center = [6.9271, 79.8612
         attribution: '&copy; OpenStreetMap contributors'
       }).addTo(map);
 
+      markersLayerRef.current = L.layerGroup().addTo(map);
       mapInstanceRef.current = map;
     }
 
     const map = mapInstanceRef.current;
+    const timer = setTimeout(() => {
+      if (map) map.invalidateSize();
+    }, 200);
 
-    // Clear existing markers
-    map.eachLayer((layer) => {
-      if (layer instanceof L.Marker || layer instanceof L.CircleMarker) {
-        map.removeLayer(layer);
+    return () => {
+      clearTimeout(timer);
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+        markersLayerRef.current = null;
       }
-    });
+    };
+  }, []);
+
+  // Update Markers
+  useEffect(() => {
+    const layer = markersLayerRef.current;
+    if (!layer) return;
+
+    layer.clearLayers();
 
     // Render Depot (Peliyagoda)
     const depotIcon = L.divIcon({
@@ -33,7 +49,7 @@ export const LiveMap = ({ vehicles = [], outlets = [], center = [6.9271, 79.8612
       iconSize: [90, 24]
     });
     L.marker([6.9654, 79.8942], { icon: depotIcon })
-      .addTo(map)
+      .addTo(layer)
       .bindPopup('<b>Central Dispatch Depot: Peliyagoda</b><br>Waypoint Distribution Hub');
 
     // Render Vehicles
@@ -48,7 +64,7 @@ export const LiveMap = ({ vehicles = [], outlets = [], center = [6.9271, 79.8612
         weight: 3,
         opacity: 1,
         fillOpacity: 0.95
-      }).addTo(map);
+      }).addTo(layer);
 
       vehicleMarker.bindPopup(`
         <div style="font-family: sans-serif; font-size: 12px;">
@@ -70,7 +86,7 @@ export const LiveMap = ({ vehicles = [], outlets = [], center = [6.9271, 79.8612
           weight: 2,
           opacity: 1,
           fillOpacity: 0.85
-        }).addTo(map);
+        }).addTo(layer);
 
         outletMarker.bindPopup(`
           <div style="font-family: sans-serif; font-size: 12px;">
@@ -82,10 +98,6 @@ export const LiveMap = ({ vehicles = [], outlets = [], center = [6.9271, 79.8612
         `);
       }
     });
-
-    return () => {
-      // cleanup if unmounted
-    };
   }, [vehicles, outlets]);
 
   return (
