@@ -50,6 +50,18 @@ class SyncManager {
   }
 
   /**
+   * Load cached delivery stops for a specific trip
+   */
+  async getCachedStopsForTrip(tripId) {
+    const db = await getDB();
+    const deliveries = await db.getAll('cachedDeliveries');
+    return deliveries.filter(d => {
+      const tId = d.trip?._id || d.trip;
+      return String(tId) === String(tripId);
+    }).sort((a, b) => (a.stopSequence || 0) - (b.stopSequence || 0));
+  }
+
+  /**
    * Trigger synchronization of all pending offline events to backend
    */
   async flushQueue() {
