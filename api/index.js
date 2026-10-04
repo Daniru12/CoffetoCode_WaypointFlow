@@ -2,10 +2,10 @@ let app;
 let initError = null;
 
 try {
-  app = require('../src/app');
+  app = require('./backend/src/app');
 } catch (err) {
   initError = err;
-  console.error('Fatal initialization error in app.js:', err);
+  console.error('Fatal initialization error in backend/src/app:', err);
 }
 
 module.exports = (req, res) => {
