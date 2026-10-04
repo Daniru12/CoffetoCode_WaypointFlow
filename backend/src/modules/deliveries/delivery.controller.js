@@ -2,6 +2,7 @@ const Delivery = require('./delivery.model');
 const Trip = require('../trips/trip.model');
 const Order = require('../orders/order.model');
 const Vehicle = require('../vehicles/vehicle.model');
+const User = require('../users/user.model');
 const ProofOfDelivery = require('../pod/proofOfDelivery.model');
 const Receipt = require('../receipts/receipt.model');
 const Issue = require('../issues/issue.model');
@@ -18,9 +19,17 @@ const storageService = require('../../services/storage.service');
  */
 const getDriverRoutesToday = asyncHandler(async (req, res) => {
   const driverId = req.user._id;
+  const userDepot = req.user.depot ? req.user.depot.trim() : null;
+  const userAssignedVehicle = req.user.assignedVehicle;
 
-  const trips = await Trip.find({
-    driver: driverId,
+  // 1. Check trips directly assigned to driver, or assigned to driver's linked vehicle
+  const driverQuery = [{ driver: driverId }];
+  if (userAssignedVehicle) {
+    driverQuery.push({ vehicle: userAssignedVehicle });
+  }
+
+  let trips = await Trip.find({
+    $or: driverQuery,
     status: { $in: ['READY', 'IN_PROGRESS', 'IN_TRANSIT', 'READY_FOR_LOADING'] }
   })
     .populate('vehicle plan')
@@ -30,8 +39,33 @@ const getDriverRoutesToday = asyncHandler(async (req, res) => {
     })
     .sort({ tripNumber: 1 });
 
+  // 2. If no directly linked trips, check unassigned trips available at driver's depot or all published runs
+  if (trips.length === 0) {
+    const unassignedTrips = await Trip.find({
+      driver: null,
+      status: { $in: ['READY', 'IN_PROGRESS', 'IN_TRANSIT', 'READY_FOR_LOADING'] }
+    })
+      .populate('vehicle plan')
+      .populate({
+        path: 'orders.order',
+        populate: { path: 'outlet' }
+      })
+      .sort({ tripNumber: 1 });
+
+    const depotMatches = unassignedTrips.filter(t => {
+      if (!userDepot) return true;
+      const vDepot = t.vehicle?.depot;
+      const pDepot = t.plan?.depot;
+      return (vDepot && vDepot.toLowerCase() === userDepot.toLowerCase()) ||
+             (pDepot && pDepot.toLowerCase() === userDepot.toLowerCase());
+    });
+
+    trips = depotMatches.length > 0 ? depotMatches : unassignedTrips;
+  }
+
   res.status(200).json(new ApiResponse(200, trips, `Retrieved ${trips.length} active routes`));
 });
+
 
 /**
  * Get trip details by tripId
@@ -457,6 +491,87 @@ const reportVehicleIssue = asyncHandler(async (req, res) => {
   res.status(201).json(new ApiResponse(201, issue, 'Vehicle breakdown reported; dispatcher alerted'));
 });
 
+/**
+ * Get authenticated driver profile with license validation & operational metrics
+ * GET /api/v1/driver/profile
+ */
+const getDriverProfile = asyncHandler(async (req, res) => {
+  const driverId = req.user._id;
+
+  const driver = await User.findById(driverId)
+    .populate('assignedVehicle')
+    .select('-password');
+
+  if (!driver) {
+    return res.status(404).json(new ApiResponse(404, null, 'Driver not found'));
+  }
+
+  // Calculate driver statistics
+  const totalTrips = await Trip.countDocuments({ driver: driverId });
+  const completedTrips = await Trip.countDocuments({ driver: driverId, status: 'COMPLETED' });
+  const totalDeliveries = await Delivery.countDocuments({ driver: driverId });
+  const completedDeliveries = await Delivery.countDocuments({ driver: driverId, status: 'DELIVERED' });
+
+  // License compliance status
+  let licenseStatus = 'VALID';
+  let daysToExpiry = null;
+
+  if (!driver.licenseNumber) {
+    licenseStatus = 'MISSING';
+  } else if (driver.licenseExpiryDate) {
+    const diffMs = new Date(driver.licenseExpiryDate).getTime() - Date.now();
+    daysToExpiry = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    if (daysToExpiry < 0) {
+      licenseStatus = 'EXPIRED';
+    } else if (daysToExpiry <= 30) {
+      licenseStatus = 'EXPIRING_SOON';
+    }
+  }
+
+  const responseData = {
+    profile: driver,
+    compliance: {
+      licenseStatus,
+      daysToExpiry,
+      hasValidLicense: licenseStatus === 'VALID' || licenseStatus === 'EXPIRING_SOON'
+    },
+    metrics: {
+      totalTrips,
+      completedTrips,
+      totalDeliveries,
+      completedDeliveries,
+      deliverySuccessRate: totalDeliveries > 0 ? Math.round((completedDeliveries / totalDeliveries) * 100) : 100
+    }
+  };
+
+  res.status(200).json(new ApiResponse(200, responseData, 'Driver profile retrieved'));
+});
+
+/**
+ * Update authenticated driver self-service profile (phone, emergency contact, license)
+ * PUT /api/v1/driver/profile
+ */
+const updateDriverProfile = asyncHandler(async (req, res) => {
+  const driverId = req.user._id;
+  const { phone, emergencyContact, licenseNumber, licenseCategory, licenseExpiryDate } = req.body;
+
+  const driver = await User.findById(driverId);
+  if (!driver) {
+    return res.status(404).json(new ApiResponse(404, null, 'Driver not found'));
+  }
+
+  if (phone !== undefined) driver.phone = phone;
+  if (emergencyContact !== undefined) driver.emergencyContact = emergencyContact;
+  if (licenseNumber !== undefined) driver.licenseNumber = licenseNumber;
+  if (licenseCategory !== undefined) driver.licenseCategory = licenseCategory;
+  if (licenseExpiryDate !== undefined) driver.licenseExpiryDate = licenseExpiryDate;
+
+  await driver.save();
+
+  const updated = await User.findById(driverId).populate('assignedVehicle').select('-password');
+  res.status(200).json(new ApiResponse(200, updated, 'Profile updated successfully'));
+});
+
 module.exports = {
   getDriverRoutesToday,
   getDriverTripById,
@@ -469,5 +584,7 @@ module.exports = {
   confirmReceipt,
   reportDeliveryIssue,
   recordDriverLocation,
-  reportVehicleIssue
+  reportVehicleIssue,
+  getDriverProfile,
+  updateDriverProfile
 };

@@ -56,7 +56,11 @@ const EMPTY_FORM = {
   role: '',
   depot: 'Peliyagoda',
   outletId: '',
-  assignedVehicle: ''
+  assignedVehicle: '',
+  licenseNumber: '',
+  licenseCategory: 'HEAVY_COMMERCIAL',
+  licenseExpiryDate: '',
+  phone: ''
 };
 
 export const UserManagement = () => {
@@ -81,7 +85,18 @@ export const UserManagement = () => {
 
   // Modals
   const [editingUser, setEditingUser] = useState(null);
-  const [editForm, setEditForm] = useState({ name: '', role: '', depot: '', outletId: '', assignedVehicle: '', isActive: true });
+  const [editForm, setEditForm] = useState({
+    name: '',
+    role: '',
+    depot: '',
+    outletId: '',
+    assignedVehicle: '',
+    isActive: true,
+    licenseNumber: '',
+    licenseCategory: 'HEAVY_COMMERCIAL',
+    licenseExpiryDate: '',
+    phone: ''
+  });
   const [editLoading, setEditLoading] = useState(false);
 
   const [passwordResetUser, setPasswordResetUser] = useState(null);
@@ -167,6 +182,10 @@ export const UserManagement = () => {
         depot: form.depot || undefined,
         outletId: form.role === 'STORE_MANAGER' ? form.outletId : undefined,
         assignedVehicle: form.role === 'DRIVER' ? (form.assignedVehicle || undefined) : undefined,
+        licenseNumber: form.role === 'DRIVER' ? (form.licenseNumber || undefined) : undefined,
+        licenseCategory: form.role === 'DRIVER' ? (form.licenseCategory || undefined) : undefined,
+        licenseExpiryDate: form.role === 'DRIVER' ? (form.licenseExpiryDate || undefined) : undefined,
+        phone: form.phone || undefined,
       };
 
       // Match selected outlet ObjectId if STORE_MANAGER
@@ -220,7 +239,11 @@ export const UserManagement = () => {
       depot: user.depot || 'Peliyagoda',
       outletId: user.outletId || (user.outlet?.outletId) || '',
       assignedVehicle: user.assignedVehicle?._id || user.assignedVehicle || '',
-      isActive: user.isActive !== undefined ? user.isActive : true
+      isActive: user.isActive !== undefined ? user.isActive : true,
+      licenseNumber: user.licenseNumber || '',
+      licenseCategory: user.licenseCategory || 'HEAVY_COMMERCIAL',
+      licenseExpiryDate: user.licenseExpiryDate ? user.licenseExpiryDate.substring(0, 10) : '',
+      phone: user.phone || ''
     });
   };
 
@@ -246,6 +269,10 @@ export const UserManagement = () => {
 
       if (editForm.role === 'DRIVER') {
         payload.assignedVehicle = editForm.assignedVehicle || null;
+        payload.licenseNumber = editForm.licenseNumber || null;
+        payload.licenseCategory = editForm.licenseCategory || null;
+        payload.licenseExpiryDate = editForm.licenseExpiryDate || null;
+        payload.phone = editForm.phone || null;
       } else {
         payload.assignedVehicle = null;
       }
@@ -588,10 +615,39 @@ export const UserManagement = () => {
 
                         {/* Secondary line if depot is relevant */}
                         {isDriver && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#64748B', fontSize: '0.75rem' }}>
-                            <MapPin size={12} />
-                            <span>Home Depot: <strong>{u.depot || 'Peliyagoda'}</strong></span>
-                          </div>
+                          <>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#64748B', fontSize: '0.75rem' }}>
+                              <MapPin size={12} />
+                              <span>Home Depot: <strong>{u.depot || 'Peliyagoda'}</strong></span>
+                            </div>
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              fontSize: '0.74rem',
+                              borderTop: '1px dashed #E2E8F0',
+                              paddingTop: '0.35rem',
+                              marginTop: '0.2rem'
+                            }}>
+                              <span style={{ color: '#475569' }}>
+                                License: <strong>{u.licenseNumber || 'Not on file'}</strong> ({u.licenseCategory?.replace('_', ' ') || 'HEAVY'})
+                              </span>
+                              {u.licenseExpiryDate ? (
+                                <span style={{
+                                  fontSize: '0.68rem',
+                                  padding: '1px 5px',
+                                  borderRadius: '4px',
+                                  backgroundColor: new Date(u.licenseExpiryDate) < new Date() ? '#FEE2E2' : '#DCFCE7',
+                                  color: new Date(u.licenseExpiryDate) < new Date() ? '#DC2626' : '#15803D',
+                                  fontWeight: 700
+                                }}>
+                                  {new Date(u.licenseExpiryDate) < new Date() ? 'EXPIRED' : `EXP: ${new Date(u.licenseExpiryDate).toLocaleDateString()}`}
+                                </span>
+                              ) : (
+                                <span style={{ fontSize: '0.68rem', color: '#94A3B8' }}>No Expiry</span>
+                              )}
+                            </div>
+                          </>
                         )}
                         {isStoreManager && u.outlet?.district && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#64748B', fontSize: '0.75rem' }}>
@@ -875,6 +931,73 @@ export const UserManagement = () => {
                       </span>
                     </div>
                   )}
+
+                  {/* Driver: License & CDL Details */}
+                  {form.role === 'DRIVER' && (
+                    <div style={{
+                      backgroundColor: '#F8FAFC',
+                      padding: '1rem',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.75rem'
+                    }}>
+                      <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                        Commercial Driving License (CDL) & Compliance
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                        <div>
+                          <label style={labelStyle}>License Number</label>
+                          <input
+                            name="licenseNumber"
+                            type="text"
+                            placeholder="e.g. B1234567"
+                            style={{ ...fieldStyle, paddingLeft: '0.85rem' }}
+                            value={form.licenseNumber}
+                            onChange={handleFormChange}
+                          />
+                        </div>
+                        <div>
+                          <label style={labelStyle}>License Category</label>
+                          <select
+                            name="licenseCategory"
+                            value={form.licenseCategory}
+                            onChange={handleFormChange}
+                            style={{ ...fieldStyle, paddingLeft: '0.85rem', appearance: 'none' }}
+                          >
+                            <option value="LIGHT_VEHICLE">Light Vehicle (Van)</option>
+                            <option value="HEAVY_COMMERCIAL">Heavy Commercial (Truck)</option>
+                            <option value="ARTICULATED">Articulated (Semi)</option>
+                            <option value="MOTOR_COACH">Motor Coach</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                        <div>
+                          <label style={labelStyle}>License Expiry Date</label>
+                          <input
+                            name="licenseExpiryDate"
+                            type="date"
+                            style={{ ...fieldStyle, paddingLeft: '0.85rem' }}
+                            value={form.licenseExpiryDate}
+                            onChange={handleFormChange}
+                          />
+                        </div>
+                        <div>
+                          <label style={labelStyle}>Driver Mobile Phone</label>
+                          <input
+                            name="phone"
+                            type="tel"
+                            placeholder="e.g. +94 77 123 4567"
+                            style={{ ...fieldStyle, paddingLeft: '0.85rem' }}
+                            value={form.phone}
+                            onChange={handleFormChange}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1016,21 +1139,83 @@ export const UserManagement = () => {
               )}
 
               {editForm.role === 'DRIVER' && (
-                <div>
-                  <label style={labelStyle}>Assigned Fleet Vehicle</label>
-                  <select
-                    value={editForm.assignedVehicle}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, assignedVehicle: e.target.value }))}
-                    style={{ ...fieldStyle, appearance: 'none' }}
-                  >
-                    <option value="">No Vehicle Assigned</option>
-                    {availableVehicles.map(v => (
-                      <option key={v._id} value={v._id}>
-                        {v.vehicleId} — {v.type.toUpperCase()} ({v.temp})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <>
+                  <div>
+                    <label style={labelStyle}>Assigned Fleet Vehicle</label>
+                    <select
+                      value={editForm.assignedVehicle}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, assignedVehicle: e.target.value }))}
+                      style={{ ...fieldStyle, appearance: 'none' }}
+                    >
+                      <option value="">No Vehicle Assigned</option>
+                      {availableVehicles.map(v => (
+                        <option key={v._id} value={v._id}>
+                          {v.vehicleId} — {v.type.toUpperCase()} ({v.temp})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div style={{
+                    backgroundColor: '#F8FAFC',
+                    padding: '0.85rem',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.65rem'
+                  }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                      Commercial Driving License (CDL) Info
+                    </span>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem' }}>
+                      <div>
+                        <label style={labelStyle}>License Number</label>
+                        <input
+                          type="text"
+                          value={editForm.licenseNumber}
+                          onChange={(e) => setEditForm(prev => ({ ...prev, licenseNumber: e.target.value }))}
+                          style={{ ...fieldStyle, paddingLeft: '0.75rem' }}
+                          placeholder="e.g. B1234567"
+                        />
+                      </div>
+                      <div>
+                        <label style={labelStyle}>License Category</label>
+                        <select
+                          value={editForm.licenseCategory}
+                          onChange={(e) => setEditForm(prev => ({ ...prev, licenseCategory: e.target.value }))}
+                          style={{ ...fieldStyle, paddingLeft: '0.75rem', appearance: 'none' }}
+                        >
+                          <option value="LIGHT_VEHICLE">Light Vehicle</option>
+                          <option value="HEAVY_COMMERCIAL">Heavy Commercial</option>
+                          <option value="ARTICULATED">Articulated</option>
+                          <option value="MOTOR_COACH">Motor Coach</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem' }}>
+                      <div>
+                        <label style={labelStyle}>Expiry Date</label>
+                        <input
+                          type="date"
+                          value={editForm.licenseExpiryDate}
+                          onChange={(e) => setEditForm(prev => ({ ...prev, licenseExpiryDate: e.target.value }))}
+                          style={{ ...fieldStyle, paddingLeft: '0.75rem' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={labelStyle}>Driver Phone</label>
+                        <input
+                          type="tel"
+                          value={editForm.phone}
+                          onChange={(e) => setEditForm(prev => ({ ...prev, phone: e.target.value }))}
+                          style={{ ...fieldStyle, paddingLeft: '0.75rem' }}
+                          placeholder="+94 77 123 4567"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </>
               )}
 
               <div>

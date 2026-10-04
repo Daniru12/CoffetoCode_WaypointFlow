@@ -69,11 +69,16 @@ export const AssignmentModal = ({ isOpen, onClose, order, plan, onAssigned, onDe
 
   const handleAssign = async () => {
     if (!selectedVehicleId) return;
+    const planId = plan?._id || plan;
+    if (!planId) {
+      setError('Please initialize or select an active delivery plan first in the Planning Console.');
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
       await planningApi.assignOrder({
-        planId: plan._id,
+        planId,
         vehicleId: selectedVehicleId,
         orderId: order._id,
         tripNumber
@@ -81,7 +86,7 @@ export const AssignmentModal = ({ isOpen, onClose, order, plan, onAssigned, onDe
       onAssigned();
       onClose();
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Failed to assign order to vehicle');
     } finally {
       setLoading(false);
     }

@@ -10,6 +10,7 @@ router.get('/', planningController.getPlans);
 router.get('/:id', planningController.getPlanById);
 router.post('/:id/validate', planningController.validatePlan);
 router.post('/:id/publish', planningController.publishPlan);
+router.post('/:id/auto-allocate', planningController.autoAllocatePlan);
 router.get('/:id/unallocated-orders', planningController.getUnallocatedOrders);
 
 module.exports = router;

@@ -107,7 +107,7 @@ const updateItem = asyncHandler(async (req, res) => {
     return res.status(404).json(new ApiResponse(404, null, 'Loading job not found'));
   }
 
-  const item = job.items.id(itemId) || job.items.find(i => i.order && i.order.toString() === itemId);
+  const item = job.items.id(itemId) || job.items.find(i => (i.order?._id || i.order)?.toString() === itemId.toString());
   if (!item) {
     return res.status(404).json(new ApiResponse(404, null, 'Item not found in loading job'));
   }
@@ -138,7 +138,7 @@ const reportShortfall = asyncHandler(async (req, res) => {
 
   job.status = 'SHORTFALL';
 
-  const item = job.items.id(itemId) || job.items.find(i => i.order && i.order.toString() === itemId);
+  const item = job.items.id(itemId) || job.items.find(i => (i.order?._id || i.order)?.toString() === itemId.toString());
   if (item) {
     item.status = 'SHORTFALL';
     item.notes = reason || `Shortfall of ${missingQty} units`;
@@ -199,7 +199,7 @@ const reportDamage = asyncHandler(async (req, res) => {
     return res.status(404).json(new ApiResponse(404, null, 'Loading job not found'));
   }
 
-  const item = job.items.id(itemId) || job.items.find(i => i.order && i.order.toString() === itemId);
+  const item = job.items.id(itemId) || job.items.find(i => (i.order?._id || i.order)?.toString() === itemId.toString());
   if (item) {
     item.status = 'DAMAGED';
     item.notes = reason || `Damaged: ${damagedQty} units`;
