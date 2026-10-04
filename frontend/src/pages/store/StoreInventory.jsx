@@ -57,8 +57,8 @@ export const StoreInventory = () => {
             cursor: 'pointer', 
             borderRadius: 'var(--radius-md)', 
             border: 'none',
-            background: activeTab === 'inventory' ? 'var(--primary)' : 'transparent',
-            color: activeTab === 'inventory' ? '#fff' : 'var(--text)',
+            background: activeTab === 'inventory' ? 'var(--primary-green)' : 'transparent',
+            color: activeTab === 'inventory' ? '#fff' : 'var(--text-primary)',
             fontWeight: 600
           }}
         >
@@ -71,8 +71,8 @@ export const StoreInventory = () => {
             cursor: 'pointer', 
             borderRadius: 'var(--radius-md)', 
             border: 'none',
-            background: activeTab === 'incoming' ? 'var(--primary)' : 'transparent',
-            color: activeTab === 'incoming' ? '#fff' : 'var(--text)',
+            background: activeTab === 'incoming' ? 'var(--primary-green)' : 'transparent',
+            color: activeTab === 'incoming' ? '#fff' : 'var(--text-primary)',
             fontWeight: 600,
             display: 'flex',
             alignItems: 'center',
@@ -111,7 +111,7 @@ export const StoreInventory = () => {
                     <td style={{ padding: '1rem', fontWeight: 600 }}>{item.itemCode}</td>
                     <td style={{ padding: '1rem' }}>{item.itemName}</td>
                     <td style={{ padding: '1rem' }}>{item.category}</td>
-                    <td style={{ padding: '1rem', fontWeight: 700, color: 'var(--primary)' }}>
+                    <td style={{ padding: '1rem', fontWeight: 700, color: 'var(--primary-green)' }}>
                       {item.quantity} {item.unit}
                     </td>
                     <td style={{ padding: '1rem', color: 'var(--text-secondary)' }}>
