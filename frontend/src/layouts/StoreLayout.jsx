@@ -3,7 +3,8 @@ import { Outlet } from 'react-router-dom';
 import { Sidebar } from '../components/navigation/Sidebar';
 import { Topbar } from '../components/navigation/Topbar';
 import { OutletProvider, useOutlet } from '../context/OutletContext';
-import { Store, ChevronDown, MapPin, Building2, Check, Loader2 } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
+import { Store, ChevronDown, MapPin, Building2, Check, Loader2, LogOut } from 'lucide-react';
 
 const BRAND_COLORS = {
   Fresh: { color: '#15803D', bg: '#DCFCE7' },
@@ -139,29 +140,61 @@ const OutletSelector = () => {
 /**
  * Inner layout — needs to be inside OutletProvider to access context
  */
-const StoreInnerLayout = () => (
-  <div className="app-container">
-    <Sidebar />
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
-      {/* Header row with topbar + outlet selector */}
-      <div style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-card)', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2rem', height: '68px', gap: '1rem' }}>
-          <div>
-            <h1 style={{ fontSize: '1.25rem', color: 'var(--text-primary)', margin: 0, fontFamily: 'var(--font-heading)' }}>Store Operations</h1>
-            <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0 }}>Manage replenishment orders, incoming deliveries and receipt confirmations</p>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <OutletSelector />
+const StoreInnerLayout = () => {
+  const { user, logout } = useAuth();
+  
+  return (
+    <div className="app-container">
+      <Sidebar />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
+        {/* Header row with topbar + outlet selector */}
+        <div style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-card)', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2rem', height: '68px', gap: '1rem' }}>
+            <div>
+              <h1 style={{ fontSize: '1.25rem', color: 'var(--text-primary)', margin: 0, fontFamily: 'var(--font-heading)' }}>Store Operations</h1>
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: 0 }}>Manage replenishment orders, incoming deliveries and receipt confirmations</p>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+              <OutletSelector />
+              
+              {/* User Profile & Logout */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', borderLeft: '1px solid var(--border)', paddingLeft: '1.25rem' }}>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.2 }}>{user?.name}</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{user?.email}</div>
+                </div>
+                <button
+                  onClick={logout}
+                  title="Sign out"
+                  style={{
+                    padding: '0.5rem',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border)',
+                    background: 'transparent',
+                    color: 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.color = '#DC2626'; e.currentTarget.style.borderColor = '#FCA5A5'; e.currentTarget.style.background = '#FEE2E2'; }}
+                  onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'transparent'; }}
+                >
+                  <LogOut size={16} />
+                </button>
+              </div>
+            </div>
           </div>
         </div>
+        <main className="main-content">
+          <Outlet />
+        </main>
       </div>
-      <main className="main-content">
-        <Outlet />
-      </main>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
-    <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-  </div>
-);
+  );
+};
 
 export const StoreLayout = () => (
   <OutletProvider>

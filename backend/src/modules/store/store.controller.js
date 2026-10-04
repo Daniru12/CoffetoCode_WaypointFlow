@@ -117,6 +117,35 @@ const getReplenishmentPlans = asyncHandler(async (req, res) => {
  */
 const createReplenishmentPlan = asyncHandler(async (req, res) => {
   const planData = { ...req.body, storeManager: req.user._id };
+  
+  if (planData.status === 'ACTIVE') {
+    const StoreManagerInventory = require('../inventory/storeManagerInventory.model');
+    // Validate and deduct stock
+    const outletCount = planData.outlets ? planData.outlets.length : 1;
+    
+    // First pass: validation
+    for (const item of planData.items) {
+      const totalRequired = item.qty * outletCount;
+      const storeItem = await StoreManagerInventory.findOne({ 
+        storeManager: req.user._id, 
+        itemName: item.itemName // Use itemName as it matches the frontend logic, or itemCode if available
+      });
+      
+      if (!storeItem || storeItem.quantity < totalRequired) {
+        return res.status(400).json(new ApiResponse(400, null, `Insufficient stock in your inventory for item: ${item.itemName}`));
+      }
+    }
+    
+    // Second pass: deduction
+    for (const item of planData.items) {
+      const totalRequired = item.qty * outletCount;
+      await StoreManagerInventory.findOneAndUpdate(
+        { storeManager: req.user._id, itemName: item.itemName },
+        { $inc: { quantity: -totalRequired } }
+      );
+    }
+  }
+
   const plan = await ReplenishmentPlan.create(planData);
   res.status(201).json(new ApiResponse(201, plan, 'Replenishment plan created successfully'));
 });
@@ -126,12 +155,46 @@ const createReplenishmentPlan = asyncHandler(async (req, res) => {
  * PUT /api/v1/store/replenishment-plans/:id
  */
 const updateReplenishmentPlan = asyncHandler(async (req, res) => {
+  const existingPlan = await ReplenishmentPlan.findOne({ _id: req.params.id, storeManager: req.user._id });
+  if (!existingPlan) return res.status(404).json(new ApiResponse(404, null, 'Plan not found'));
+
+  const newStatus = req.body.status || existingPlan.status;
+  
+  // If transitioning to ACTIVE, deduct stock
+  if (existingPlan.status !== 'ACTIVE' && newStatus === 'ACTIVE') {
+    const StoreManagerInventory = require('../inventory/storeManagerInventory.model');
+    const items = req.body.items || existingPlan.items;
+    const outlets = req.body.outlets || existingPlan.outlets;
+    const outletCount = outlets ? outlets.length : 1;
+
+    // First pass: validation
+    for (const item of items) {
+      const totalRequired = item.qty * outletCount;
+      const storeItem = await StoreManagerInventory.findOne({ 
+        storeManager: req.user._id, 
+        itemName: item.itemName 
+      });
+      
+      if (!storeItem || storeItem.quantity < totalRequired) {
+        return res.status(400).json(new ApiResponse(400, null, `Insufficient stock in your inventory for item: ${item.itemName}`));
+      }
+    }
+    
+    // Second pass: deduction
+    for (const item of items) {
+      const totalRequired = item.qty * outletCount;
+      await StoreManagerInventory.findOneAndUpdate(
+        { storeManager: req.user._id, itemName: item.itemName },
+        { $inc: { quantity: -totalRequired } }
+      );
+    }
+  }
+
   const plan = await ReplenishmentPlan.findOneAndUpdate(
     { _id: req.params.id, storeManager: req.user._id },
     req.body,
     { new: true }
   );
-  if (!plan) return res.status(404).json(new ApiResponse(404, null, 'Plan not found'));
   res.status(200).json(new ApiResponse(200, plan, 'Replenishment plan updated'));
 });
 
