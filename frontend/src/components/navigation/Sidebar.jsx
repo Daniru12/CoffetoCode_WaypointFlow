@@ -14,7 +14,8 @@ import {
   TrendingUp,
   RotateCcw,
   ShieldCheck,
-  Users2
+  Users2,
+  Package
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -37,6 +38,7 @@ export const Sidebar = () => {
       case 'STORE_MANAGER':
         return [
           { to: '/store/dashboard', label: 'Store Dashboard', icon: LayoutDashboard },
+          { to: '/store/inventory', label: 'My Inventory', icon: Package },
           { to: '/store/orders/create', label: 'Create Order', icon: PlusCircle },
           { to: '/store/orders', label: 'My Store Orders', icon: ShoppingCart },
           { to: '/store/replenishment-plans', label: 'Replenishment Plans', icon: Calendar }
@@ -52,7 +54,8 @@ export const Sidebar = () => {
         ];
       case 'LOADER':
         return [
-          { to: '/loader/jobs', label: 'Loading Jobs', icon: ClipboardList }
+          { to: '/loader/jobs', label: 'Loading Jobs', icon: ClipboardList },
+          { to: '/loader/inventory', label: 'Inventory Management', icon: FileCheck }
         ];
       case 'DRIVER':
         return [

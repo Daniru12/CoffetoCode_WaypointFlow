@@ -21,6 +21,7 @@ const forecastRoutes = require('../modules/forecasts/forecast.routes');
 const notificationRoutes = require('../modules/notifications/notification.routes');
 const auditRoutes = require('../modules/audit/audit.routes');
 const issueRoutes = require('../modules/issues/issue.routes');
+const inventoryRoutes = require('../modules/inventory/inventory.routes');
 
 router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
@@ -42,5 +43,6 @@ router.use('/forecasts', forecastRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/audit', auditRoutes);
 router.use('/issues', issueRoutes);
+router.use('/inventory', inventoryRoutes);
 
 module.exports = router;

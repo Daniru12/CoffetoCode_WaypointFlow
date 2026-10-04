@@ -30,6 +30,8 @@ import { StoreOrders } from './pages/store/Orders';
 import { OrderDetails } from './pages/store/OrderDetails';
 import { ConfirmReceipt } from './pages/store/ConfirmReceipt';
 import { ReplenishmentPlans } from './pages/store/ReplenishmentPlans';
+import { ReplenishmentPlanForm } from './pages/store/ReplenishmentPlanForm';
+import { StoreInventory } from './pages/store/StoreInventory';
 
 // Dispatcher Pages
 import { DispatcherDashboard } from './pages/dispatcher/Dashboard';
@@ -42,6 +44,7 @@ import { CapacityForecast } from './pages/dispatcher/CapacityForecast';
 // Loader Pages
 import { LoaderJobs } from './pages/loader/Jobs';
 import { LoaderChecklist } from './pages/loader/Checklist';
+import { Inventory as LoaderInventory } from './pages/loader/Inventory';
 
 // Driver Pages
 import { TodayRoute } from './pages/driver/TodayRoute';
@@ -110,6 +113,9 @@ export const App = () => {
               <Route path="orders/:orderId" element={<OrderDetails />} />
               <Route path="deliveries/:deliveryId/receipt" element={<ConfirmReceipt />} />
               <Route path="replenishment-plans" element={<ReplenishmentPlans />} />
+              <Route path="replenishment-plans/create" element={<ReplenishmentPlanForm />} />
+              <Route path="replenishment-plans/:id" element={<ReplenishmentPlanForm />} />
+              <Route path="inventory" element={<StoreInventory />} />
               <Route index element={<Navigate to="dashboard" replace />} />
             </Route>
 
@@ -146,6 +152,7 @@ export const App = () => {
             >
               <Route path="jobs" element={<LoaderJobs />} />
               <Route path="jobs/:jobId" element={<LoaderChecklist />} />
+              <Route path="inventory" element={<LoaderInventory />} />
               <Route index element={<Navigate to="jobs" replace />} />
             </Route>
 

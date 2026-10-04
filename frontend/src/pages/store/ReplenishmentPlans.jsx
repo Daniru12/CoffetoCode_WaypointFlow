@@ -1,27 +1,18 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ordersApi } from '../../api/orders.api';
 import { Card } from '../../components/common/Card';
 import { Badge } from '../../components/common/Badge';
 import { LoadingSpinner } from '../../components/common/LoadingSpinner';
 import { EmptyState } from '../../components/common/EmptyState';
-import { Calendar, PlusCircle, Trash2, Edit2, Store } from 'lucide-react';
+import { Calendar, PlusCircle, Trash2, Edit2, Play, Pause, FileText } from 'lucide-react';
 import { useOutlet } from '../../context/OutletContext';
 
 export const ReplenishmentPlans = () => {
+  const navigate = useNavigate();
   const { outlets } = useOutlet();
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [editingPlan, setEditingPlan] = useState(null);
-  
-  // Form State
-  const [planName, setPlanName] = useState('');
-  const [frequency, setFrequency] = useState('WEEKLY');
-  const [scheduleDay, setScheduleDay] = useState(1);
-  const [brand, setBrand] = useState('Fresh');
-  const [tempRequirement, setTempRequirement] = useState('ambient');
-  const [selectedOutlets, setSelectedOutlets] = useState([]);
-  const [items, setItems] = useState([{ itemName: '', qty: 1 }]);
 
   useEffect(() => {
     fetchPlans();
@@ -39,52 +30,8 @@ export const ReplenishmentPlans = () => {
     }
   };
 
-  const handleOpenModal = (plan = null) => {
-    if (plan) {
-      setEditingPlan(plan);
-      setPlanName(plan.planName);
-      setFrequency(plan.frequency);
-      setScheduleDay(plan.scheduleDay);
-      setBrand(plan.brand);
-      setTempRequirement(plan.tempRequirement);
-      setSelectedOutlets(plan.outlets.map(o => o._id));
-      setItems(plan.items.length ? plan.items : [{ itemName: '', qty: 1 }]);
-    } else {
-      setEditingPlan(null);
-      setPlanName('');
-      setFrequency('WEEKLY');
-      setScheduleDay(1);
-      setBrand('Fresh');
-      setTempRequirement('ambient');
-      setSelectedOutlets([]);
-      setItems([{ itemName: '', qty: 1 }]);
-    }
-    setShowModal(true);
-  };
-
-  const handleSave = async (e) => {
-    e.preventDefault();
-    const data = {
-      planName, frequency, scheduleDay, brand, tempRequirement,
-      outlets: selectedOutlets,
-      items: items.filter(i => i.itemName)
-    };
-    try {
-      if (editingPlan) {
-        await ordersApi.updateReplenishmentPlan(editingPlan._id, data);
-      } else {
-        await ordersApi.createReplenishmentPlan(data);
-      }
-      setShowModal(false);
-      fetchPlans();
-    } catch (err) {
-      console.error(err);
-      alert('Failed to save plan');
-    }
-  };
-
   const handleDelete = async (id) => {
-    if (window.confirm('Delete this plan?')) {
+    if (window.confirm('Delete this replenishment plan?')) {
       try {
         await ordersApi.deleteReplenishmentPlan(id);
         fetchPlans();
@@ -94,8 +41,22 @@ export const ReplenishmentPlans = () => {
     }
   };
 
-  const toggleOutlet = (id) => {
-    setSelectedOutlets(prev => prev.includes(id) ? prev.filter(o => o !== id) : [...prev, id]);
+  const toggleStatus = async (plan) => {
+    const newStatus = plan.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE';
+    try {
+      await ordersApi.updateReplenishmentPlan(plan._id, { status: newStatus });
+      fetchPlans();
+    } catch (err) {
+      console.error('Failed to update status', err);
+    }
+  };
+
+  const getStatusColor = (status) => {
+    switch(status) {
+      case 'ACTIVE': return { bg: '#DCFCE7', text: '#166534' };
+      case 'PAUSED': return { bg: '#FEF9C3', text: '#854D0E' };
+      case 'DRAFT': default: return { bg: '#F1F5F9', text: '#475569' };
+    }
   };
 
   if (loading) return <LoadingSpinner text="Loading Replenishment Plans..." />;
@@ -107,126 +68,57 @@ export const ReplenishmentPlans = () => {
           <h2 style={{ fontSize: '1.5rem', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Calendar size={24} color="var(--primary)" /> Replenishment Plans
           </h2>
-          <p style={{ color: 'var(--text-secondary)', margin: '0.25rem 0 0 0' }}>Manage weekly or monthly recurring orders for your outlets.</p>
+          <p style={{ color: 'var(--text-secondary)', margin: '0.25rem 0 0 0' }}>Manage reusable delivery plans across multiple outlets.</p>
         </div>
-        <button className="btn-primary" onClick={() => handleOpenModal()}>
+        <button className="btn-primary" onClick={() => navigate('/store/replenishment-plans/create')}>
           <PlusCircle size={18} /> Create Plan
         </button>
       </div>
 
-      <Card>
-        {plans.length === 0 ? (
-          <EmptyState title="No plans found" message="Create a recurring replenishment plan to automate your orders." />
-        ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left', color: 'var(--text-muted)' }}>
-                <th style={{ padding: '1rem' }}>Plan Name</th>
-                <th style={{ padding: '1rem' }}>Frequency</th>
-                <th style={{ padding: '1rem' }}>Schedule</th>
-                <th style={{ padding: '1rem' }}>Brand & Temp</th>
-                <th style={{ padding: '1rem' }}>Outlets Applied</th>
-                <th style={{ padding: '1rem', textAlign: 'right' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {plans.map(p => (
-                <tr key={p._id} style={{ borderBottom: '1px solid var(--border)' }}>
-                  <td style={{ padding: '1rem', fontWeight: 600 }}>{p.planName}</td>
-                  <td style={{ padding: '1rem' }}>{p.frequency}</td>
-                  <td style={{ padding: '1rem' }}>{p.frequency === 'WEEKLY' ? `Day ${p.scheduleDay}` : `Date ${p.scheduleDay}`}</td>
-                  <td style={{ padding: '1rem' }}>{p.brand} ({p.tempRequirement})</td>
-                  <td style={{ padding: '1rem' }}>{p.outlets.length} outlet(s)</td>
-                  <td style={{ padding: '1rem', textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                    <button className="btn-secondary" style={{ padding: '0.4rem', borderRadius: '4px' }} onClick={() => handleOpenModal(p)}>
-                      <Edit2 size={16} />
+      {plans.length === 0 ? (
+        <EmptyState title="No plans found" message="Create a single reusable plan to automate orders for your outlets." icon={FileText} action={<button className="btn-primary" onClick={() => navigate('/store/replenishment-plans/create')}>Create Plan</button>} />
+      ) : (
+        <div style={{ display: 'grid', gap: '1rem' }}>
+          {plans.map(p => {
+            const statusConfig = getStatusColor(p.status);
+            return (
+              <Card key={p._id} style={{ padding: '0' }}>
+                <div style={{ padding: '1.25rem', display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ flex: 1, minWidth: '300px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
+                      <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800 }}>{p.planName}</h3>
+                      <span style={{ padding: '0.2rem 0.6rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 700, backgroundColor: statusConfig.bg, color: statusConfig.text }}>
+                        {p.status}
+                      </span>
+                    </div>
+                    {p.description && <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>{p.description}</div>}
+                    
+                    <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8rem', color: 'var(--text-muted)', flexWrap: 'wrap' }}>
+                      <span><strong>Outlets:</strong> {p.outlets.length}</span>
+                      <span><strong>Freq:</strong> {p.frequency}</span>
+                      {p.frequency === 'WEEKLY' && <span><strong>Days:</strong> {p.deliveryDays?.join(', ')}</span>}
+                      <span><strong>Cargo:</strong> <span style={{ textTransform: 'capitalize' }}>{p.cargoType}</span></span>
+                      <span><strong>Est. Load:</strong> {p.estimatedTotalWeightKg} kg / {p.estimatedTotalVolumeM3} m³</span>
+                    </div>
+                  </div>
+                  
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    {p.status !== 'DRAFT' && (
+                      <button className="btn-secondary" onClick={() => toggleStatus(p)} title={p.status === 'ACTIVE' ? 'Pause Plan' : 'Resume Plan'}>
+                        {p.status === 'ACTIVE' ? <Pause size={16} /> : <Play size={16} />}
+                      </button>
+                    )}
+                    <button className="btn-secondary" onClick={() => navigate(`/store/replenishment-plans/${p._id}`)}>
+                      <Edit2 size={16} /> Edit
                     </button>
-                    <button className="btn-secondary" style={{ padding: '0.4rem', borderRadius: '4px', color: '#DC2626' }} onClick={() => handleDelete(p._id)}>
+                    <button className="btn-secondary" style={{ color: '#DC2626' }} onClick={() => handleDelete(p._id)}>
                       <Trash2 size={16} />
                     </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Card>
-
-      {/* Modal for Create/Edit Plan */}
-      {showModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', padding: '2rem', borderRadius: '12px', width: '600px', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3 style={{ marginTop: 0 }}>{editingPlan ? 'Edit Plan' : 'Create Replenishment Plan'}</h3>
-            <form onSubmit={handleSave}>
-              <div style={{ display: 'grid', gap: '1rem' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.25rem' }}>Plan Name</label>
-                  <input required className="input-field" value={planName} onChange={e => setPlanName(e.target.value)} placeholder="e.g., Weekly Fresh Restock" style={{ width: '100%', padding: '0.5rem' }} />
-                </div>
-                
-                <div style={{ display: 'flex', gap: '1rem' }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.25rem' }}>Frequency</label>
-                    <select className="input-field" value={frequency} onChange={e => setFrequency(e.target.value)} style={{ width: '100%', padding: '0.5rem' }}>
-                      <option value="WEEKLY">Weekly</option>
-                      <option value="MONTHLY">Monthly</option>
-                    </select>
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.25rem' }}>{frequency === 'WEEKLY' ? 'Day of Week (1=Mon, 7=Sun)' : 'Day of Month'}</label>
-                    <input type="number" required min="1" max={frequency === 'WEEKLY' ? 7 : 28} className="input-field" value={scheduleDay} onChange={e => setScheduleDay(Number(e.target.value))} style={{ width: '100%', padding: '0.5rem' }} />
                   </div>
                 </div>
-
-                <div style={{ display: 'flex', gap: '1rem' }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.25rem' }}>Brand</label>
-                    <select className="input-field" value={brand} onChange={e => setBrand(e.target.value)} style={{ width: '100%', padding: '0.5rem' }}>
-                      <option value="Fresh">Fresh</option>
-                      <option value="Style">Style</option>
-                      <option value="Tech">Tech</option>
-                    </select>
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.25rem' }}>Temp Requirement</label>
-                    <select className="input-field" value={tempRequirement} onChange={e => setTempRequirement(e.target.value)} style={{ width: '100%', padding: '0.5rem' }}>
-                      <option value="ambient">Ambient</option>
-                      <option value="chilled">Chilled</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.5rem' }}>Assign to Outlets</label>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', maxHeight: '150px', overflowY: 'auto', border: '1px solid var(--border)', padding: '0.5rem', borderRadius: '4px' }}>
-                    {outlets.map(o => (
-                      <label key={o._id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
-                        <input type="checkbox" checked={selectedOutlets.includes(o._id)} onChange={() => toggleOutlet(o._id)} />
-                        {o.name || o.outletId}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '0.5rem' }}>Items</label>
-                  {items.map((item, idx) => (
-                    <div key={idx} style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                      <input placeholder="Item name" className="input-field" value={item.itemName} onChange={e => { const newItems = [...items]; newItems[idx].itemName = e.target.value; setItems(newItems); }} style={{ flex: 2, padding: '0.5rem' }} />
-                      <input type="number" min="1" className="input-field" value={item.qty} onChange={e => { const newItems = [...items]; newItems[idx].qty = Number(e.target.value); setItems(newItems); }} style={{ flex: 1, padding: '0.5rem' }} />
-                      <button type="button" onClick={() => setItems(items.filter((_, i) => i !== idx))} style={{ color: '#DC2626', background: 'none', border: 'none', cursor: 'pointer' }}><Trash2 size={16} /></button>
-                    </div>
-                  ))}
-                  <button type="button" onClick={() => setItems([...items, { itemName: '', qty: 1 }])} style={{ color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.85rem' }}>+ Add Item</button>
-                </div>
-              </div>
-              
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem' }}>
-                <button type="button" className="btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
-                <button type="submit" className="btn-primary">Save Plan</button>
-              </div>
-            </form>
-          </div>
+              </Card>
+            )
+          })}
         </div>
       )}
     </div>
