@@ -56,14 +56,18 @@ export const DriverRouteMap = ({
     }
 
     const map = mapInstanceRef.current;
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       if (map) map.invalidateSize();
     }, 200);
 
     return () => {
-      // Map cleanup on unmount handled gracefully
+      clearTimeout(timer);
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
     };
-  }, []);
+  }, [depot]);
 
   // Plot Depot, Stops, and Route Polyline
   useEffect(() => {

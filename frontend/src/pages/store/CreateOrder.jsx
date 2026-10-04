@@ -13,11 +13,15 @@ export const CreateOrder = () => {
   tomorrow.setDate(tomorrow.getDate() + 1);
   const defaultDateStr = tomorrow.toISOString().slice(0, 10);
 
+  const defaultBrand = user?.outlet?.brand || 'Fresh';
+  const defaultOpen = user?.outlet?.windowOpenTime || '06:00';
+  const defaultClose = user?.outlet?.windowCloseTime || '08:00';
+
   const [requestedDeliveryDate, setRequestedDeliveryDate] = useState(defaultDateStr);
-  const [brand, setBrand] = useState('Fresh');
+  const [brand, setBrand] = useState(defaultBrand);
   const [tempRequirement, setTempRequirement] = useState('ambient');
-  const [windowStart, setWindowStart] = useState('06:00');
-  const [windowEnd, setWindowEnd] = useState('08:00');
+  const [windowStart, setWindowStart] = useState(defaultOpen);
+  const [windowEnd, setWindowEnd] = useState(defaultClose);
 
   const [items, setItems] = useState([
     { itemName: 'Carton Goods', qty: 20, unit: 'cartons', weightKg: 200, volumeM3: 1.5 }
