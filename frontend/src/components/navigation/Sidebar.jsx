@@ -13,7 +13,8 @@ import {
   FileCheck,
   TrendingUp,
   RotateCcw,
-  ShieldCheck
+  ShieldCheck,
+  Users2
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -30,13 +31,15 @@ export const Sidebar = () => {
           { to: '/admin/users', label: 'Personnel & Roles', icon: LayoutDashboard },
           { to: '/admin/depots', label: 'Depots & Fleet Hub', icon: Truck },
           { to: '/admin/outlets', label: 'Outlet Network', icon: MapPin },
+          { to: '/admin/store-managers-outlets', label: 'Store Managers & Outlets', icon: Users2 },
           { to: '/admin/audit', label: 'Governance & Audit', icon: ShieldCheck }
         ];
       case 'STORE_MANAGER':
         return [
           { to: '/store/dashboard', label: 'Store Dashboard', icon: LayoutDashboard },
           { to: '/store/orders/create', label: 'Create Order', icon: PlusCircle },
-          { to: '/store/orders', label: 'My Store Orders', icon: ShoppingCart }
+          { to: '/store/orders', label: 'My Store Orders', icon: ShoppingCart },
+          { to: '/store/replenishment-plans', label: 'Replenishment Plans', icon: Calendar }
         ];
       case 'DISPATCHER':
         return [

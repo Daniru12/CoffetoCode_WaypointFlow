@@ -21,6 +21,7 @@ import { UserManagement } from './pages/admin/UserManagement';
 import { DepotFleetManagement } from './pages/admin/DepotFleetManagement';
 import { OutletManagement } from './pages/admin/OutletManagement';
 import { AuditLogs } from './pages/admin/AuditLogs';
+import { StoreManagersOutlets } from './pages/admin/StoreManagersOutlets';
 
 // Store Manager Pages
 import { StoreDashboard } from './pages/store/Dashboard';
@@ -28,6 +29,7 @@ import { CreateOrder } from './pages/store/CreateOrder';
 import { StoreOrders } from './pages/store/Orders';
 import { OrderDetails } from './pages/store/OrderDetails';
 import { ConfirmReceipt } from './pages/store/ConfirmReceipt';
+import { ReplenishmentPlans } from './pages/store/ReplenishmentPlans';
 
 // Dispatcher Pages
 import { DispatcherDashboard } from './pages/dispatcher/Dashboard';
@@ -85,6 +87,7 @@ export const App = () => {
               <Route path="users" element={<UserManagement />} />
               <Route path="depots" element={<DepotFleetManagement />} />
               <Route path="outlets" element={<OutletManagement />} />
+              <Route path="store-managers-outlets" element={<StoreManagersOutlets />} />
               <Route path="audit" element={<AuditLogs />} />
               <Route index element={<Navigate to="users" replace />} />
             </Route>
@@ -105,6 +108,7 @@ export const App = () => {
               <Route path="orders/create" element={<CreateOrder />} />
               <Route path="orders/:orderId" element={<OrderDetails />} />
               <Route path="deliveries/:deliveryId/receipt" element={<ConfirmReceipt />} />
+              <Route path="replenishment-plans" element={<ReplenishmentPlans />} />
               <Route index element={<Navigate to="dashboard" replace />} />
             </Route>
 

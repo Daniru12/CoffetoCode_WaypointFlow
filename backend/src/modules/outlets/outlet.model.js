@@ -20,7 +20,8 @@ const outletSchema = new mongoose.Schema({
   windowOpenTime: { type: String, default: "06:00" },
   windowCloseTime: { type: String, default: "08:00" },
   latitude: { type: Number },
-  longitude: { type: Number }
+  longitude: { type: Number },
+  assignedManager: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null }
 }, { timestamps: true });
 
 outletSchema.index({ depot: 1, brand: 1, district: 1 });

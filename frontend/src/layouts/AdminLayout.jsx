@@ -20,6 +20,12 @@ export const AdminLayout = () => {
         subtitle: '120 commercial locations, delivery windows, dock specifications & van-only restrictions'
       };
     }
+    if (path.includes('/admin/store-managers-outlets')) {
+      return {
+        title: 'Store Managers & Outlets',
+        subtitle: 'Assign store managers to outlets, manage workloads and bulk reassignment across the retail network'
+      };
+    }
     if (path.includes('/admin/audit')) {
       return {
         title: 'Governance & Audit Trail',

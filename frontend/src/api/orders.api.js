@@ -9,5 +9,11 @@ export const ordersApi = {
   updateOrder: (id, data) => api.patch(`/orders/${id}`, data),
   deleteOrder: (id) => api.delete(`/orders/${id}`),
   getOrderTracking: (id) => api.get(`/orders/${id}/tracking`),
-  getStoreDashboard: () => api.get('/store/dashboard')
+  getStoreDashboard: (outletId) => api.get('/store/dashboard', { params: outletId ? { outletId } : {} }),
+  getMyOutlets: () => api.get('/store/my-outlets'),
+  getReplenishmentPlans: () => api.get('/store/replenishment-plans'),
+  createReplenishmentPlan: (data) => api.post('/store/replenishment-plans', data),
+  updateReplenishmentPlan: (id, data) => api.put(`/store/replenishment-plans/${id}`, data),
+  deleteReplenishmentPlan: (id) => api.delete(`/store/replenishment-plans/${id}`),
 };
+
