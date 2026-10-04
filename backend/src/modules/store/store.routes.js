@@ -12,6 +12,7 @@ router.get('/dashboard', storeController.getStoreDashboard);
 // Replenishment Plans
 router.get('/replenishment-plans', storeController.getReplenishmentPlans);
 router.post('/replenishment-plans', storeController.createReplenishmentPlan);
+router.post('/replenishment-plans/:id/generate-orders', storeController.generateOrdersFromPlan);
 router.put('/replenishment-plans/:id', storeController.updateReplenishmentPlan);
 router.delete('/replenishment-plans/:id', storeController.deleteReplenishmentPlan);
 

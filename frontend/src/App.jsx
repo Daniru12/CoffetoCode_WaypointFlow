@@ -152,6 +152,9 @@ export const App = () => {
             >
               <Route path="jobs" element={<LoaderJobs />} />
               <Route path="jobs/:jobId" element={<LoaderChecklist />} />
+              <Route path="trips" element={<LoaderJobs />} />
+              <Route path="manifest" element={<LoaderJobs />} />
+              <Route path="manifest/:jobId" element={<LoaderChecklist />} />
               <Route path="inventory" element={<LoaderInventory />} />
               <Route index element={<Navigate to="jobs" replace />} />
             </Route>
@@ -171,6 +174,8 @@ export const App = () => {
               <Route path="trips/:tripId/stops" element={<CurrentStop />} />
               <Route path="deliveries/:deliveryId/pod" element={<DriverPOD />} />
               <Route path="deliveries/:deliveryId/incident" element={<DriverIncident />} />
+              <Route path="issue" element={<DriverIncident />} />
+              <Route path="incident" element={<DriverIncident />} />
               <Route path="sync" element={<OfflineSync />} />
               <Route path="profile" element={<DriverProfile />} />
               <Route index element={<Navigate to="route" replace />} />

@@ -2,8 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { planningApi } from '../../api/planning.api';
 import { usersApi } from '../../api/users.api';
+import { adminApi } from '../../api/admin.api';
+import { useSocket } from '../../hooks/useSocket';
 import { Card } from '../../components/common/Card';
 import { Badge } from '../../components/common/Badge';
+import { Modal } from '../../components/common/Modal';
 import { LoadingSpinner } from '../../components/common/LoadingSpinner';
 import { AssignmentModal } from '../../components/planning/AssignmentModal';
 import { TripStopReorderModal } from '../../components/planning/TripStopReorderModal';
@@ -27,11 +30,18 @@ import {
   Info,
   Lock,
   Check,
-  PackageCheck
+  PackageCheck,
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  CheckCheck,
+  FileText,
+  X
 } from 'lucide-react';
 
 export const PlanningConsole = () => {
   const navigate = useNavigate();
+  const { socket } = useSocket();
   const [plans, setPlans] = useState([]);
   const [currentPlan, setCurrentPlan] = useState(null);
   const [trips, setTrips] = useState([]);
@@ -40,8 +50,20 @@ export const PlanningConsole = () => {
   const [publishing, setPublishing] = useState(false);
   const [validating, setValidating] = useState(false);
   const [allocating, setAllocating] = useState(false);
+  const [approvingAll, setApprovingAll] = useState(false);
   const [message, setMessage] = useState(null);
   const [error, setError] = useState(null);
+
+  // Auto-Reassignment & At-Risk Fleet Management
+  const [atRiskTrips, setAtRiskTrips] = useState([]);
+  const [expandedLifoTripId, setExpandedLifoTripId] = useState(null);
+  const [overrideModalOpen, setOverrideModalOpen] = useState(false);
+  const [overrideTrip, setOverrideTrip] = useState(null);
+  const [availableVehicles, setAvailableVehicles] = useState([]);
+  const [overrideVehicleId, setOverrideVehicleId] = useState('');
+  const [overrideDriverId, setOverrideDriverId] = useState('');
+  const [overrideReason, setOverrideReason] = useState('');
+  const [processingReassign, setProcessingReassign] = useState(false);
 
   // Stepper Stage (1: Order Intake, 2: Route Allocation, 3: Manifest Review & Validation, 4: Dock Release)
   const [activeStage, setActiveStage] = useState(1);
@@ -68,7 +90,38 @@ export const PlanningConsole = () => {
   useEffect(() => {
     loadPlans();
     loadDepotDrivers();
+    loadAtRiskTrips();
   }, [selectedDepot, deliveryDate]);
+
+  useEffect(() => {
+    if (socket) {
+      const handleIncident = () => {
+        loadAtRiskTrips();
+        if (currentPlan) selectPlan(currentPlan._id, false);
+      };
+      socket.on('vehicle.breakdown', handleIncident);
+      socket.on('route.updated', handleIncident);
+      socket.on('trip.started', handleIncident);
+      socket.on('plan.published', handleIncident);
+      return () => {
+        socket.off('vehicle.breakdown', handleIncident);
+        socket.off('route.updated', handleIncident);
+        socket.off('trip.started', handleIncident);
+        socket.off('plan.published', handleIncident);
+      };
+    }
+  }, [socket, currentPlan]);
+
+  const loadAtRiskTrips = async () => {
+    try {
+      const res = await planningApi.getTrips();
+      const all = res.data || [];
+      const critical = all.filter(t => t.atRisk || t.reassignmentTemplate?.status === 'PROPOSED');
+      setAtRiskTrips(critical);
+    } catch (e) {
+      console.warn('Failed to load at-risk trips:', e.message);
+    }
+  };
 
   const loadDepotDrivers = async () => {
     try {
@@ -76,6 +129,94 @@ export const PlanningConsole = () => {
       setDepotDrivers(res.data || []);
     } catch (e) {
       console.warn('Failed to load drivers for depot:', e.message);
+    }
+  };
+
+  const handleApproveAllTrips = async () => {
+    if (!currentPlan) return;
+    setApprovingAll(true);
+    setMessage(null);
+    setError(null);
+    try {
+      const res = await planningApi.approveAllPlanTrips(currentPlan._id);
+      setMessage(res.message || 'All auto-assigned vehicle runs verified and approved! Plan is READY for Dock Release.');
+      await selectPlan(currentPlan._id, false);
+      setActiveStage(3);
+    } catch (e) {
+      setError(e.message || 'Failed to approve all trips');
+    } finally {
+      setApprovingAll(false);
+    }
+  };
+
+  const handleApproveReassignment = async (tripId) => {
+    setProcessingReassign(true);
+    setMessage(null);
+    setError(null);
+    try {
+      await planningApi.approveReassignment(tripId, {});
+      setMessage('Replacement vehicle run approved and dispatched to driver console! Remaining stops restored to active route.');
+      await loadAtRiskTrips();
+      if (currentPlan) await selectPlan(currentPlan._id, false);
+    } catch (e) {
+      setError(e.message || 'Failed to approve reassignment');
+    } finally {
+      setProcessingReassign(false);
+    }
+  };
+
+  const handleOpenOverride = async (trip) => {
+    setOverrideTrip(trip);
+    setOverrideVehicleId(trip.reassignmentTemplate?.replacementVehicle?._id || '');
+    setOverrideDriverId(trip.reassignmentTemplate?.replacementDriver?._id || '');
+    setOverrideReason('');
+    try {
+      const res = await adminApi.getVehicles({ depot: selectedDepot, status: 'AVAILABLE' });
+      setAvailableVehicles(res.data || []);
+    } catch (e) {
+      console.warn('Failed to load available fleet:', e.message);
+    }
+    setOverrideModalOpen(true);
+  };
+
+  const handleSubmitOverride = async (e) => {
+    e.preventDefault();
+    if (!overrideTrip) return;
+    setProcessingReassign(true);
+    setMessage(null);
+    setError(null);
+    try {
+      await planningApi.approveReassignment(overrideTrip._id, {
+        newVehicleId: overrideVehicleId,
+        newDriverId: overrideDriverId || undefined,
+        overrideReason: overrideReason || 'Dispatcher manual override of replacement vehicle'
+      });
+      setMessage('Manual override applied: Replacement vehicle run approved and dispatched to driver console.');
+      setOverrideModalOpen(false);
+      setOverrideTrip(null);
+      await loadAtRiskTrips();
+      if (currentPlan) await selectPlan(currentPlan._id, false);
+    } catch (err) {
+      setError(err.message || 'Failed to apply reassignment override');
+    } finally {
+      setProcessingReassign(false);
+    }
+  };
+
+  const handleRejectReassignment = async (tripId) => {
+    if (!window.confirm('Reject this reassignment and auto-defer all remaining orders on this broken-down vehicle?')) return;
+    setProcessingReassign(true);
+    setMessage(null);
+    setError(null);
+    try {
+      await planningApi.rejectReassignment(tripId, { reason: 'Dispatcher rejected reassignment: Fleet unavailable' });
+      setMessage('Reassignment rejected. All remaining undelivered orders auto-deferred to next run.');
+      await loadAtRiskTrips();
+      if (currentPlan) await selectPlan(currentPlan._id, false);
+    } catch (err) {
+      setError(err.message || 'Failed to reject reassignment');
+    } finally {
+      setProcessingReassign(false);
     }
   };
 
@@ -164,15 +305,24 @@ export const PlanningConsole = () => {
   };
 
   const handleAutoAllocate = async () => {
-    if (!currentPlan) return;
     setAllocating(true);
     setMessage(null);
     setError(null);
     try {
-      const res = await planningApi.autoAllocatePlan(currentPlan._id);
+      let planId = currentPlan?._id;
+      if (!planId) {
+        const newPlanRes = await planningApi.createPlan({
+          deliveryDate,
+          depot: selectedDepot
+        });
+        planId = newPlanRes.data._id;
+        const res = await planningApi.getPlans({ depot: selectedDepot, date: deliveryDate });
+        setPlans(res.data || []);
+      }
+      const res = await planningApi.autoAllocatePlan(planId);
       const data = res.data || {};
       setMessage(`Route Allocation Solver Complete: Formed ${data.tripsCount || 0} vehicle runs. Allocated ${data.servedOrdersCount || 0} orders (${data.deferredOrdersCount || 0} deferred due to capacity/constraints).`);
-      await selectPlan(currentPlan._id, false);
+      await selectPlan(planId, false);
       setActiveStage(2);
     } catch (err) {
       setError(err.message);
@@ -326,13 +476,210 @@ export const PlanningConsole = () => {
           <p style={{ color: 'var(--text-secondary)', maxWidth: '500px', margin: '0 auto 1.5rem auto', fontSize: '0.9rem' }}>
             Initialize a delivery plan to ingest retail store demand, run the 10-constraint route allocation solver, and release manifests to the warehouse dock.
           </p>
-          <button className="btn-primary" onClick={handleCreateNewPlan} style={{ padding: '0.65rem 1.25rem' }}>
-            <Plus size={18} />
-            <span>Initialize Plan for this Schedule</span>
-          </button>
+          <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+            <button className="btn-secondary" onClick={handleCreateNewPlan} style={{ padding: '0.65rem 1.25rem' }}>
+              <Plus size={18} />
+              <span>Initialize Empty Plan</span>
+            </button>
+            <button
+              className="btn-primary"
+              onClick={handleAutoAllocate}
+              disabled={allocating}
+              style={{
+                padding: '0.65rem 1.35rem',
+                backgroundColor: '#059669',
+                borderColor: '#059669',
+                fontWeight: 800,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}
+            >
+              <Sparkles size={18} />
+              <span>{allocating ? 'Solving Auto-Plan...' : 'Auto-Generate Plan (Delivery Intelligence)'}</span>
+            </button>
+          </div>
         </div>
       ) : (
         <>
+          {/* ======================================================== */}
+          {/* AUTO-REASSIGN TEMPLATE PANEL (Dispatcher -> Driver)     */}
+          {/* ======================================================== */}
+          {atRiskTrips.length > 0 && (
+            <div style={{
+              backgroundColor: '#FFF1F2',
+              border: '2px solid #F43F5E',
+              borderRadius: 'var(--radius-lg)',
+              padding: '1.5rem',
+              marginBottom: '1.5rem',
+              boxShadow: '0 4px 12px rgba(244, 63, 94, 0.12)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <div style={{
+                    backgroundColor: '#E11D48',
+                    color: '#FFFFFF',
+                    borderRadius: '50%',
+                    width: '38px',
+                    height: '38px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0
+                  }}>
+                    <AlertTriangle size={22} />
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#9F1239' }}>
+                      CRITICAL: Driver Immobilized & Cannot Continue ({atRiskTrips.length} At-Risk Runs)
+                    </h3>
+                    <span style={{ fontSize: '0.85rem', color: '#BE123C' }}>
+                      Driver reported vehicle breakdown / incident. Remaining stops flagged At Risk and replacement vehicle template generated.
+                    </span>
+                  </div>
+                </div>
+                <span style={{
+                  backgroundColor: '#FFE4E6',
+                  color: '#9F1239',
+                  padding: '0.3rem 0.75rem',
+                  borderRadius: '9999px',
+                  fontSize: '0.75rem',
+                  fontWeight: 800,
+                  border: '1px solid #FECDD3'
+                }}>
+                  ACTION REQUIRED
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {atRiskTrips.map((art) => {
+                  const tmpl = art.reassignmentTemplate;
+                  const hasProposal = tmpl && tmpl.status === 'PROPOSED' && tmpl.replacementVehicle;
+                  const stopsCount = tmpl?.remainingOrders?.length || 0;
+
+                  return (
+                    <div
+                      key={art._id}
+                      style={{
+                        backgroundColor: '#FFFFFF',
+                        border: '1px solid #FECDD3',
+                        borderRadius: 'var(--radius-md)',
+                        padding: '1.25rem',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1rem' }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                            <span style={{ fontWeight: 800, fontSize: '1rem', color: '#1E293B' }}>{art.tripRef}</span>
+                            <span style={{ backgroundColor: '#FEE2E2', color: '#991B1B', padding: '0.15rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 800 }}>
+                              STOPS AT RISK: {stopsCount}
+                            </span>
+                          </div>
+                          <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748B' }}>
+                            Disabled Vehicle: <strong>{tmpl?.originalVehicle?.vehicleId || art.vehicle?.vehicleId || 'N/A'}</strong> | Reported Incident: <span style={{ color: '#E11D48', fontWeight: 600 }}>{tmpl?.reason || 'Mechanical Breakdown'}</span>
+                          </p>
+                        </div>
+
+                        {hasProposal ? (
+                          <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                            <button
+                              className="btn-primary"
+                              onClick={() => handleApproveReassignment(art._id)}
+                              disabled={processingReassign}
+                              style={{
+                                backgroundColor: '#059669',
+                                borderColor: '#059669',
+                                fontWeight: 800,
+                                padding: '0.55rem 1.1rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.4rem'
+                              }}
+                            >
+                              <CheckCircle size={16} />
+                              <span>Approve Reassignment (1-Click)</span>
+                            </button>
+                            <button
+                              className="btn-secondary"
+                              onClick={() => handleOpenOverride(art)}
+                              disabled={processingReassign}
+                              style={{ fontSize: '0.85rem', padding: '0.55rem 0.9rem' }}
+                            >
+                              <span>Override / Edit</span>
+                            </button>
+                            <button
+                              className="btn-secondary"
+                              onClick={() => handleRejectReassignment(art._id)}
+                              disabled={processingReassign}
+                              style={{ fontSize: '0.85rem', color: '#991B1B', borderColor: '#FCA5A5', padding: '0.55rem 0.9rem' }}
+                            >
+                              <span>Reject & Defer</span>
+                            </button>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                            <span style={{ fontSize: '0.8rem', color: '#DC2626', fontWeight: 700 }}>
+                              No matching fleet unit available. Orders auto-deferred.
+                            </span>
+                            <button
+                              className="btn-secondary"
+                              onClick={() => handleOpenOverride(art)}
+                              style={{ fontSize: '0.8rem' }}
+                            >
+                              Manual Override
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Proposed Replacement Details */}
+                      {hasProposal && (
+                        <div style={{
+                          backgroundColor: '#F0FDF4',
+                          border: '1px solid #BBF7D0',
+                          borderRadius: 'var(--radius-sm)',
+                          padding: '0.85rem 1rem',
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                          gap: '0.75rem',
+                          fontSize: '0.825rem'
+                        }}>
+                          <div>
+                            <span style={{ color: '#166534', fontSize: '0.725rem', fontWeight: 700, textTransform: 'uppercase' }}>Recommended Fleet Unit</span>
+                            <div style={{ fontWeight: 800, color: '#14532D', fontSize: '0.95rem', marginTop: '0.1rem' }}>
+                              {tmpl.replacementVehicle.vehicleId} ({tmpl.replacementVehicle.type} • {tmpl.replacementVehicle.temp})
+                            </div>
+                            <span style={{ fontSize: '0.725rem', color: '#15803D' }}>
+                              Cap: {tmpl.replacementVehicle.weightCapKg}kg ({tmpl.remainingWeightKg}kg remaining load)
+                            </span>
+                          </div>
+
+                          <div>
+                            <span style={{ color: '#166534', fontSize: '0.725rem', fontWeight: 700, textTransform: 'uppercase' }}>Replacement Driver</span>
+                            <div style={{ fontWeight: 800, color: '#14532D', fontSize: '0.95rem', marginTop: '0.1rem' }}>
+                              {tmpl.replacementDriver?.name || 'Depot Fleet Driver'}
+                            </div>
+                            <span style={{ fontSize: '0.725rem', color: '#15803D' }}>
+                              Phone: {tmpl.replacementDriver?.phone || 'Dispatched via App'}
+                            </span>
+                          </div>
+
+                          <div style={{ gridColumn: 'span 2' }}>
+                            <span style={{ color: '#166534', fontSize: '0.725rem', fontWeight: 700, textTransform: 'uppercase' }}>Stock Transfer Directives</span>
+                            <div style={{ color: '#14532D', marginTop: '0.1rem', fontWeight: 500 }}>
+                              {tmpl.stockTransferNote}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* 4-Stage Operational Planning Stepper */}
           <div style={{
             display: 'grid',
@@ -550,16 +897,25 @@ export const PlanningConsole = () => {
                       : 'Orders already assigned. Proceed to review formed runs.'}
                   </span>
 
-                  <div style={{ display: 'flex', gap: '0.75rem' }}>
+                  <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
                     {unallocatedOrders.length > 0 && (
                       <button
                         className="btn-primary"
                         onClick={handleAutoAllocate}
                         disabled={allocating || isPublished}
-                        style={{ padding: '0.65rem 1.25rem' }}
+                        style={{
+                          padding: '0.65rem 1.35rem',
+                          backgroundColor: '#059669',
+                          borderColor: '#059669',
+                          fontWeight: 800,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem'
+                        }}
+                        title="Auto-assign orders, cluster by depot/district/brand, enforce 7 constraints, sequence ETAs, and generate reverse LIFO loading lists"
                       >
-                        <Cpu size={18} />
-                        <span>{allocating ? 'Solving Routes...' : 'Run Route Allocation Solver →'}</span>
+                        <Sparkles size={18} />
+                        <span>{allocating ? 'Solving Auto-Plan...' : 'Auto-Generate Plan (Delivery Intelligence)'}</span>
                       </button>
                     )}
                     {trips.length > 0 && (
@@ -601,14 +957,55 @@ export const PlanningConsole = () => {
               </div>
 
               {/* Formed Runs Grid */}
-              <Card title={`Formed Vehicle Runs (${trips.length})`} subtitle="Assigned trips with payload metrics and stop profiles">
+              <Card
+                title={`Formed Vehicle Runs (${trips.length})`}
+                subtitle="Template-based optimized runs with auto-assigned metadata and dock loading lists"
+                action={
+                  <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center' }}>
+                    <button
+                      className="btn-primary"
+                      onClick={handleApproveAllTrips}
+                      disabled={approvingAll || isPublished || trips.length === 0}
+                      style={{
+                        backgroundColor: '#059669',
+                        borderColor: '#059669',
+                        fontWeight: 800,
+                        padding: '0.45rem 0.95rem',
+                        fontSize: '0.85rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.4rem'
+                      }}
+                      title="1-Click Approve all trips in this plan to transition to READY for Dock Release"
+                    >
+                      <CheckCircle size={16} />
+                      <span>{approvingAll ? 'Approving All...' : 'Approve All Trips (1-Click)'}</span>
+                    </button>
+                    <button
+                      className="btn-secondary"
+                      onClick={handleAutoAllocate}
+                      disabled={allocating || isPublished}
+                      style={{ padding: '0.45rem 0.85rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                      title="Re-run the automated delivery intelligence engine"
+                    >
+                      <Sparkles size={16} color="var(--primary-green)" />
+                      <span>{allocating ? 'Solving...' : 'Re-run Auto-Plan'}</span>
+                    </button>
+                  </div>
+                }
+              >
                 {trips.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
                     <Truck size={40} color="#94A3B8" style={{ margin: '0 auto 0.75rem auto' }} />
                     <p style={{ fontWeight: 700, margin: '0 0 0.5rem 0' }}>No vehicle runs formed yet.</p>
-                    <button className="btn-primary" onClick={handleAutoAllocate} disabled={allocating || isPublished || unallocatedOrders.length === 0}>
-                      <Cpu size={16} />
-                      <span>{allocating ? 'Solving...' : 'Run Route Allocation Engine'}</span>
+                    <button
+                      className="btn-primary"
+                      onClick={handleAutoAllocate}
+                      disabled={allocating || isPublished || unallocatedOrders.length === 0}
+                      style={{ backgroundColor: '#059669', borderColor: '#059669', fontWeight: 800 }}
+                    >
+                      <Sparkles size={16} />
+                      <span>{allocating ? 'Solving...' : 'Auto-Generate Delivery Plan'}</span>
                     </button>
                   </div>
                 ) : (
@@ -629,16 +1026,50 @@ export const PlanningConsole = () => {
                             border: '1px solid var(--border)',
                             borderRadius: 'var(--radius-lg)',
                             padding: '1.25rem',
-                            backgroundColor: '#FFFFFF'
+                            backgroundColor: '#FFFFFF',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
                           }}
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
                               <Truck size={22} color="var(--primary-green)" />
                               <div>
-                                <h4 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0 }}>
-                                  {trip.tripRef} (Shift #{trip.tripNumber})
-                                </h4>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                  <h4 style={{ fontSize: '1.05rem', fontWeight: 800, margin: 0 }}>
+                                    {trip.tripRef} (Shift #{trip.tripNumber})
+                                  </h4>
+                                  {trip.isAutoAssigned && (
+                                    <span
+                                      style={{
+                                        backgroundColor: '#DCFCE7',
+                                        color: '#166534',
+                                        border: '1px solid #BBF7D0',
+                                        borderRadius: '9999px',
+                                        padding: '0.15rem 0.55rem',
+                                        fontSize: '0.725rem',
+                                        fontWeight: 800,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.3rem'
+                                      }}
+                                      title={trip.autoAssignReason || 'Auto-assigned by Delivery Intelligence Solver'}
+                                    >
+                                      <Sparkles size={12} color="#166534" />
+                                      <span>Auto-assigned</span>
+                                    </span>
+                                  )}
+                                  <span style={{
+                                    backgroundColor: trip.validationStatus?.valid !== false ? '#F0FDF4' : '#FEF2F2',
+                                    color: trip.validationStatus?.valid !== false ? '#15803D' : '#991B1B',
+                                    border: `1px solid ${trip.validationStatus?.valid !== false ? '#BBF7D0' : '#FECACA'}`,
+                                    borderRadius: '4px',
+                                    padding: '0.15rem 0.45rem',
+                                    fontSize: '0.725rem',
+                                    fontWeight: 800
+                                  }}>
+                                    {trip.validationStatus?.valid !== false ? 'VALIDATED' : 'VIOLATIONS'}
+                                  </span>
+                                </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap', marginTop: '0.2rem' }}>
                                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                                     Vehicle: <strong>{trip.vehicle?.vehicleId}</strong> ({trip.vehicle?.type} • {trip.vehicle?.temp})
@@ -680,10 +1111,10 @@ export const PlanningConsole = () => {
                           </div>
 
                           {/* Progress Bars */}
-                          <div style={{ backgroundColor: '#F8FAFC', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '0.85rem', marginBottom: '1rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                          <div style={{ backgroundColor: '#F8FAFC', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: '0.85rem', marginBottom: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                               <span>District: <strong>{trip.district || 'All Districts'}</strong></span>
-                              <span>Window: <strong>{isFreshTrip ? 'Pre-Dawn Fresh (270m)' : 'Daytime Standard (480m)'}</strong></span>
+                              <span>Window: <strong>{isFreshTrip ? 'Pre-Dawn Fresh (270m cutoff)' : 'Daytime Standard (480m)'}</strong></span>
                             </div>
 
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
@@ -728,15 +1159,110 @@ export const PlanningConsole = () => {
                             </div>
                           </div>
 
-                          {/* Stop Sequence Preview */}
-                          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                            <strong>Stops ({trip.orders?.length || 0}):</strong>{' '}
-                            {trip.orders?.map((o, idx) => (
-                              <span key={idx} style={{ marginRight: '0.5rem' }}>
-                                #{o.stopSequence || idx + 1} {o.order?.outlet?.name || o.order?.orderRef}
-                                {idx < (trip.orders.length - 1) ? ' →' : ''}
+                          {/* Explainable Reasoning Callout */}
+                          {trip.autoAssignReason && (
+                            <div style={{
+                              backgroundColor: '#F0FDF4',
+                              border: '1px solid #BBF7D0',
+                              borderRadius: 'var(--radius-sm)',
+                              padding: '0.55rem 0.75rem',
+                              fontSize: '0.75rem',
+                              color: '#166534',
+                              display: 'flex',
+                              alignItems: 'flex-start',
+                              gap: '0.45rem',
+                              marginBottom: '0.75rem'
+                            }}>
+                              <Info size={14} color="#166534" style={{ flexShrink: 0, marginTop: '2px' }} />
+                              <span><strong>Solver Rationale:</strong> {trip.autoAssignReason}</span>
+                            </div>
+                          )}
+
+                          {/* Stop Sequence & Sequenced ETAs Preview */}
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
+                            <strong>Stops & Sequenced ETAs ({trip.orders?.length || 0}):</strong>{' '}
+                            {trip.orders?.map((o, idx) => {
+                              const etaStr = o.estimatedArrival ? new Date(o.estimatedArrival).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null;
+                              return (
+                                <span key={idx} style={{ marginRight: '0.5rem' }}>
+                                  #{o.stopSequence || idx + 1} {o.order?.outlet?.name || o.order?.orderRef}
+                                  {etaStr && <span style={{ color: '#0369A1', fontWeight: 600 }}> ({etaStr})</span>}
+                                  {idx < (trip.orders.length - 1) ? ' →' : ''}
+                                </span>
+                              );
+                            })}
+                          </div>
+
+                          {/* LIFO Loading Manifest Toggle */}
+                          <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: '0.65rem' }}>
+                            <button
+                              type="button"
+                              className="btn-secondary"
+                              onClick={() => setExpandedLifoTripId(expandedLifoTripId === trip._id ? null : trip._id)}
+                              style={{ fontSize: '0.75rem', padding: '0.35rem 0.7rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                            >
+                              <ListOrdered size={14} />
+                              <span>
+                                {expandedLifoTripId === trip._id
+                                  ? 'Hide LIFO Dock Manifest'
+                                  : `Inspect Reverse LIFO Loading List (${trip.lifoLoadingList?.length || trip.orders?.length || 0} Items)`}
                               </span>
-                            ))}
+                            </button>
+
+                            {expandedLifoTripId === trip._id && (
+                              <div style={{ marginTop: '0.75rem', backgroundColor: '#F8FAFC', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.75rem' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                                  <strong style={{ fontSize: '0.775rem', color: 'var(--text-primary)' }}>Reverse Stop-Order Loading Manifest (LIFO Dock Plan):</strong>
+                                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Position #1 loaded innermost (last drop); Stop #1 loaded last by rear doors</span>
+                                </div>
+                                <table style={{ width: '100%', fontSize: '0.75rem', borderCollapse: 'collapse' }}>
+                                  <thead>
+                                    <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-muted)', textAlign: 'left' }}>
+                                      <th style={{ padding: '0.35rem' }}>Loading Order</th>
+                                      <th style={{ padding: '0.35rem' }}>Delivery Stop</th>
+                                      <th style={{ padding: '0.35rem' }}>Retail Outlet</th>
+                                      <th style={{ padding: '0.35rem' }}>Order Ref</th>
+                                      <th style={{ padding: '0.35rem' }}>Units</th>
+                                      <th style={{ padding: '0.35rem' }}>Weight/Vol</th>
+                                      <th style={{ padding: '0.35rem' }}>Temp</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {(trip.lifoLoadingList && trip.lifoLoadingList.length > 0 ? trip.lifoLoadingList : [...(trip.orders || [])].reverse().map((it, i) => ({
+                                      loadingOrder: i + 1,
+                                      stopSequence: it.stopSequence || (trip.orders.length - i),
+                                      outletName: it.order?.outlet?.name || 'Retail Outlet',
+                                      orderRef: it.order?.orderRef || 'N/A',
+                                      units: it.order?.orderUnits || 1,
+                                      weightKg: it.order?.orderWeightKg || 0,
+                                      volumeM3: it.order?.orderVolumeM3 || 0,
+                                      temp: it.order?.tempRequirement || (trip.brand === 'Fresh' ? 'chilled' : 'ambient')
+                                    }))).map((item, idx) => (
+                                      <tr key={idx} style={{ borderBottom: '1px solid #E2E8F0' }}>
+                                        <td style={{ padding: '0.4rem', fontWeight: 800, color: 'var(--primary-green)' }}>Position #{item.loadingOrder}</td>
+                                        <td style={{ padding: '0.4rem' }}>Stop #{item.stopSequence}</td>
+                                        <td style={{ padding: '0.4rem', fontWeight: 600 }}>{item.outletName}</td>
+                                        <td style={{ padding: '0.4rem', color: 'var(--text-muted)' }}>{item.orderRef}</td>
+                                        <td style={{ padding: '0.4rem' }}>{item.units} pkgs</td>
+                                        <td style={{ padding: '0.4rem' }}>{item.weightKg}kg • {typeof item.volumeM3 === 'number' ? item.volumeM3.toFixed(1) : item.volumeM3}m³</td>
+                                        <td style={{ padding: '0.4rem' }}>
+                                          <span style={{
+                                            backgroundColor: item.temp === 'chilled' ? '#DBEAFE' : '#F1F5F9',
+                                            color: item.temp === 'chilled' ? '#1E40AF' : 'var(--text-secondary)',
+                                            padding: '0.1rem 0.4rem',
+                                            borderRadius: '3px',
+                                            fontWeight: 700,
+                                            fontSize: '0.7rem'
+                                          }}>
+                                            {item.temp?.toUpperCase() || 'AMBIENT'}
+                                          </span>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
                           </div>
                         </div>
                       );
@@ -1155,6 +1681,91 @@ export const PlanningConsole = () => {
           onUpdated={() => selectPlan(currentPlan._id)}
         />
       )}
+
+      {/* Manual Override Reassignment Modal */}
+      <Modal
+        isOpen={overrideModalOpen}
+        onClose={() => {
+          setOverrideModalOpen(false);
+          setOverrideTrip(null);
+        }}
+        title={`Override Reassignment: ${overrideTrip?.tripRef || ''}`}
+      >
+        <form onSubmit={handleSubmitOverride} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div style={{ backgroundColor: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 'var(--radius-sm)', padding: '0.75rem', fontSize: '0.85rem' }}>
+            <span style={{ color: '#991B1B', fontWeight: 700 }}>Dispatcher Override Compliance:</span>
+            <p style={{ margin: '0.2rem 0 0 0', color: '#B91C1C', fontSize: '0.8rem' }}>
+              Every override of the automated solver requires a formal audit reason and validation against vehicle capacity limits.
+            </p>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Replacement Fleet Vehicle *</label>
+            <select
+              className="form-select"
+              required
+              value={overrideVehicleId}
+              onChange={(e) => setOverrideVehicleId(e.target.value)}
+            >
+              <option value="">-- Choose Replacement Vehicle --</option>
+              {availableVehicles.map((v) => (
+                <option key={v._id} value={v._id}>
+                  {v.vehicleId} ({v.type} • {v.temp} • Cap: {v.weightCapKg}kg, {v.volumeCapM3}m³) - {v.depot}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Replacement Driver (Optional)</label>
+            <select
+              className="form-select"
+              value={overrideDriverId}
+              onChange={(e) => setOverrideDriverId(e.target.value)}
+            >
+              <option value="">-- Keep Linked / Auto-Select Driver --</option>
+              {depotDrivers.map((d) => (
+                <option key={d._id} value={d._id}>
+                  {d.name} {d.assignedVehicle ? `(${d.assignedVehicle.vehicleId || 'Linked'})` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Override Reason (Mandatory Audit Log) *</label>
+            <textarea
+              rows="3"
+              required
+              className="form-textarea"
+              placeholder="State the operational justification for overriding the automated solver proposal..."
+              value={overrideReason}
+              onChange={(e) => setOverrideReason(e.target.value)}
+            />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => {
+                setOverrideModalOpen(false);
+                setOverrideTrip(null);
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={processingReassign || !overrideVehicleId || !overrideReason}
+              style={{ backgroundColor: '#059669', borderColor: '#059669', fontWeight: 800 }}
+            >
+              <span>{processingReassign ? 'Applying Override...' : 'Confirm Reassignment Override'}</span>
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 };

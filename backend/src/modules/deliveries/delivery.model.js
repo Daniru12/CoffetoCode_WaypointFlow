@@ -9,9 +9,10 @@ const deliverySchema = new mongoose.Schema({
   stopSequence: { type: Number, required: true },
   status: {
     type: String,
-    enum: ['PENDING', 'ARRIVED', 'DELIVERED', 'FAILED'],
+    enum: ['PENDING', 'ARRIVED', 'DELIVERED', 'AT_RISK', 'FAILED'],
     default: 'PENDING'
   },
+  isAtRisk: { type: Boolean, default: false },
   plannedArrival: { type: Date },
   actualArrival: { type: Date },
   deliveredQuantity: { type: Number },

@@ -27,12 +27,12 @@ const createOrder = asyncHandler(async (req, res) => {
 
   // 1. Identify outlet
   let outlet;
-  if (req.user.role === 'STORE_MANAGER' && req.user.outlet) {
-    outlet = await Outlet.findById(req.user.outlet);
-  } else if (outletId) {
+  if (outletId) {
     outlet = await Outlet.findOne({
       $or: [{ outletId }, ...(outletId.match(/^[0-9a-fA-F]{24}$/) ? [{ _id: outletId }] : [])]
     });
+  } else if (req.user.role === 'STORE_MANAGER' && req.user.outlet) {
+    outlet = await Outlet.findById(req.user.outlet);
   }
 
   if (!outlet) {
@@ -47,17 +47,26 @@ const createOrder = asyncHandler(async (req, res) => {
   }
 
   // 3. Cutoff enforcement (16:00 Colombo time for next-day delivery)
-  const colombo = getColomboTimeParts();
+  const { getEffectiveTime, getColomboTimeParts, isCutoffPassed, getNextSuggestedRun } = require('../../utils/time.util');
+  const effectiveNow = getEffectiveTime();
+  const colombo = getColomboTimeParts(effectiveNow);
   const deliveryDate = new Date(requestedDeliveryDate);
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrow = getNextSuggestedRun(effectiveNow);
 
-  const isNextDay = deliveryDate.toISOString().slice(0, 10) === tomorrow.toISOString().slice(0, 10);
+  const isTargetTomorrow = deliveryDate.toISOString().slice(0, 10) === tomorrow.toISOString().slice(0, 10);
+  const cutoffPassed = isCutoffPassed(effectiveNow);
+
   let status = 'CONFIRMED';
+  let isPostCutoff = false;
+  let dispatchCycle = 'CURRENT_CYCLE';
+  let scheduledDispatchDate = deliveryDate;
   let cutoffNotice = null;
 
-  if (isNextDay && (colombo.hours > 16 || (colombo.hours === 16 && colombo.minutes > 0))) {
-    cutoffNotice = 'Order placed after 16:00 cutoff. Automatically queued for subsequent delivery cycle.';
+  if (isTargetTomorrow && cutoffPassed) {
+    isPostCutoff = true;
+    dispatchCycle = 'NEXT_CYCLE';
+    scheduledDispatchDate = getNextSuggestedRun(tomorrow);
+    cutoffNotice = `Order placed after 16:00 Colombo cutoff (${colombo.timeString}). Queued for subsequent delivery cycle (${scheduledDispatchDate.toISOString().slice(0, 10)}).`;
   }
 
   // Calculate default weight/volume if items are given
@@ -73,6 +82,19 @@ const createOrder = asyncHandler(async (req, res) => {
 
   if (!calculatedUnits) calculatedUnits = 1;
 
+  // Deduct from Store Manager inventory if placed by a Store Manager
+  if (req.user && req.user.role === 'STORE_MANAGER' && items && items.length > 0) {
+    const StoreManagerInventory = require('../inventory/storeManagerInventory.model');
+    for (const it of items) {
+      if (it.itemName && it.qty) {
+        await StoreManagerInventory.findOneAndUpdate(
+          { storeManager: req.user._id, itemName: it.itemName },
+          { $inc: { quantity: -Number(it.qty) } }
+        );
+      }
+    }
+  }
+
   // 4. Generate unique order reference
   const randomSuffix = Math.random().toString(36).substring(2, 7).toUpperCase();
   const orderRef = `ORD-${outlet.outletId}-${Date.now().toString().slice(-6)}-${randomSuffix}`;
@@ -80,10 +102,10 @@ const createOrder = asyncHandler(async (req, res) => {
   const order = await Order.create({
     orderRef,
     outlet: outlet._id,
-    requestedDeliveryDate: deliveryDate,
+    requestedDeliveryDate: isPostCutoff ? scheduledDispatchDate : deliveryDate,
     brand: outlet.brand,
     tempRequirement,
-    items: items.length > 0 ? items : [{ itemName: 'Standard Cargo', qty: calculatedUnits, weightKg: calculatedWeight, volumeM3: calculatedVolume }],
+    items: items && items.length > 0 ? items : [{ itemName: 'Standard Cargo', qty: calculatedUnits, weightKg: calculatedWeight, volumeM3: calculatedVolume }],
     orderUnits: calculatedUnits,
     orderWeightKg: calculatedWeight,
     orderVolumeM3: calculatedVolume,
@@ -93,7 +115,12 @@ const createOrder = asyncHandler(async (req, res) => {
     },
     status,
     createdBy: req.user._id,
-    submittedAt: new Date()
+    submittedAt: effectiveNow,
+    orderSource: req.body.orderSource || 'MANUAL',
+    replenishmentPlan: req.body.replenishmentPlan || undefined,
+    isPostCutoff,
+    dispatchCycle,
+    scheduledDispatchDate
   });
 
   const populatedOrder = await Order.findById(order._id).populate('outlet createdBy', '-password');
@@ -187,7 +214,7 @@ const getMyOrders = asyncHandler(async (req, res) => {
  * Filters: brand, district, depot, temperature, deliveryWindow, status, deferred
  */
 const getOrderQueue = asyncHandler(async (req, res) => {
-  const { brand, district, depot, temperature, deliveryWindow, status, deferred } = req.query;
+  const { brand, district, depot, temperature, deliveryWindow, status, deferred, orderSource, dispatchCycle } = req.query;
 
   const filter = {};
 
@@ -200,6 +227,8 @@ const getOrderQueue = asyncHandler(async (req, res) => {
 
   if (brand) filter.brand = brand;
   if (temperature) filter.tempRequirement = temperature;
+  if (orderSource) filter.orderSource = orderSource;
+  if (dispatchCycle) filter.dispatchCycle = dispatchCycle;
   if (deferred === 'true') {
     filter.deferredCount = { $gt: 0 };
   }
