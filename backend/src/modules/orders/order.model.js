@@ -40,7 +40,28 @@ const orderSchema = new mongoose.Schema({
   scheduledAt: { type: Date },
   estimatedArrival: { type: Date },
   deferredCount: { type: Number, default: 0 },
-  lastDeferredAt: { type: Date }
+  lastDeferredAt: { type: Date },
+  orderSource: {
+    type: String,
+    enum: ['MANUAL', 'REPLENISHMENT_PLAN'],
+    default: 'MANUAL'
+  },
+  replenishmentPlan: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'ReplenishmentPlan'
+  },
+  isPostCutoff: {
+    type: Boolean,
+    default: false
+  },
+  dispatchCycle: {
+    type: String,
+    enum: ['CURRENT_CYCLE', 'NEXT_CYCLE'],
+    default: 'CURRENT_CYCLE'
+  },
+  scheduledDispatchDate: {
+    type: Date
+  }
 }, { timestamps: true });
 
 orderSchema.index({ requestedDeliveryDate: 1, status: 1 });

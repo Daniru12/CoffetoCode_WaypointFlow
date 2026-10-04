@@ -384,11 +384,196 @@ const unassignTripOrder = asyncHandler(async (req, res) => {
   res.status(200).json(new ApiResponse(200, { tripId: trip._id, unassignedOrder: orderId }, 'Order unassigned successfully'));
 });
 
+/**
+ * Dispatcher 1-click Approval of Auto-Reassignment Template
+ * POST /api/v1/trips/:tripId/approve-reassignment
+ */
+const approveReassignment = asyncHandler(async (req, res) => {
+  const { tripId } = req.params;
+  const { newVehicleId, newDriverId, overrideReason } = req.body;
+
+  const trip = await Trip.findOne({
+    $or: [{ tripRef: tripId }, ...(tripId.match(/^[0-9a-fA-F]{24}$/) ? [{ _id: tripId }] : [])]
+  }).populate('orders.order');
+
+  if (!trip) {
+    return res.status(404).json(new ApiResponse(404, null, 'Trip not found'));
+  }
+
+  if (!trip.reassignmentTemplate) {
+    return res.status(400).json(new ApiResponse(400, null, 'No pending reassignment template found for this trip'));
+  }
+
+  const template = trip.reassignmentTemplate;
+  const targetVehicleId = newVehicleId || template.replacementVehicle?._id;
+  const targetDriverId = newDriverId || template.replacementDriver?._id;
+
+  if (!targetVehicleId) {
+    return res.status(400).json(new ApiResponse(400, null, 'Cannot approve reassignment without an assigned replacement vehicle'));
+  }
+
+  const replacementVehicle = await Vehicle.findById(targetVehicleId);
+  if (!replacementVehicle) {
+    return res.status(404).json(new ApiResponse(404, null, 'Replacement vehicle not found in registry'));
+  }
+
+  const previousVehicleId = trip.vehicle;
+  const previousDriverId = trip.driver;
+
+  // 1. Mark previous vehicle UNAVAILABLE
+  if (previousVehicleId) {
+    await Vehicle.findByIdAndUpdate(previousVehicleId, { status: 'UNAVAILABLE' });
+  }
+
+  // 2. Assign replacement vehicle & driver to trip
+  trip.vehicle = replacementVehicle._id;
+  if (targetDriverId) {
+    trip.driver = targetDriverId;
+  }
+  trip.status = 'IN_TRANSIT';
+  trip.atRisk = false;
+
+  // 3. Update reassignment template status
+  template.status = 'APPROVED';
+  template.approvedBy = req.user._id;
+  template.approvedAt = new Date();
+  if (overrideReason) {
+    template.overrideReason = overrideReason;
+    template.isDispatcherOverride = true;
+  }
+  trip.reassignmentTemplate = template;
+  await trip.save();
+
+  // 4. Mark replacement vehicle as ASSIGNED
+  await Vehicle.findByIdAndUpdate(replacementVehicle._id, { status: 'ASSIGNED' });
+
+  // 5. Update remaining deliveries: reset status from AT_RISK to PENDING, update driver, update planned arrival
+  const remainingDeliveries = await Delivery.find({
+    trip: trip._id,
+    status: { $in: ['AT_RISK', 'PENDING'] }
+  });
+
+  for (const del of remainingDeliveries) {
+    del.status = 'PENDING';
+    del.isAtRisk = false;
+    if (trip.driver) {
+      del.driver = trip.driver;
+    }
+    const matchedStop = (template.remainingOrders || []).find(
+      s => (s.deliveryId && s.deliveryId.toString() === del._id.toString()) ||
+           (s.orderId && s.orderId.toString() === del.order?.toString())
+    );
+    if (matchedStop && matchedStop.estimatedArrival) {
+      del.plannedArrival = matchedStop.estimatedArrival;
+    }
+    await del.save();
+  }
+
+  // 6. Update loading job & notify warehouse loader for stock transfer
+  if (template.stockTransferNote) {
+    const LoadingJob = require('../loading/loadingJob.model');
+    await LoadingJob.updateMany(
+      { trip: trip._id },
+      {
+        vehicle: replacementVehicle._id,
+        isStockTransfer: true,
+        stockTransferNote: template.stockTransferNote
+      }
+    );
+
+    socketService.emit('stock.transfer.requested', {
+      tripId: trip._id,
+      tripRef: trip.tripRef,
+      note: template.stockTransferNote,
+      fromVehicle: template.originalVehicle?.vehicleId,
+      toVehicle: replacementVehicle.vehicleId
+    });
+  }
+
+  // 7. Emit route update to replacement driver console
+  socketService.emitRouteUpdated(trip);
+  await auditService.log({
+    user: req.user,
+    action: 'ROUTE_REASSIGNED',
+    entityType: 'Trip',
+    entityId: trip._id,
+    reason: overrideReason || 'Approved auto-reassignment template for breakdown recovery',
+    previousData: { vehicle: previousVehicleId, driver: previousDriverId },
+    newData: { vehicle: replacementVehicle._id, driver: trip.driver }
+  });
+
+  const updatedTrip = await Trip.findById(trip._id).populate('vehicle driver plan');
+
+  res.status(200).json(new ApiResponse(200, updatedTrip, 'Auto-reassignment template approved and route pushed to replacement driver'));
+});
+
+/**
+ * Dispatcher Reject Reassignment & Auto-defer Remaining Orders
+ * POST /api/v1/trips/:tripId/reject-reassignment
+ */
+const rejectReassignment = asyncHandler(async (req, res) => {
+  const { tripId } = req.params;
+  const { reason = 'Dispatcher rejected reassignment: Remaining orders deferred' } = req.body;
+
+  const trip = await Trip.findOne({
+    $or: [{ tripRef: tripId }, ...(tripId.match(/^[0-9a-fA-F]{24}$/) ? [{ _id: tripId }] : [])]
+  });
+
+  if (!trip) {
+    return res.status(404).json(new ApiResponse(404, null, 'Trip not found'));
+  }
+
+  if (trip.reassignmentTemplate) {
+    trip.reassignmentTemplate.status = 'REJECTED';
+    trip.reassignmentTemplate.rejectedBy = req.user._id;
+    trip.reassignmentTemplate.rejectedAt = new Date();
+    trip.reassignmentTemplate.rejectReason = reason;
+  }
+  trip.atRisk = false;
+  trip.status = 'INTERRUPTED';
+  await trip.save();
+
+  // Defer remaining
+  const remainingDeliveries = await Delivery.find({
+    trip: trip._id,
+    status: { $in: ['AT_RISK', 'PENDING', 'ARRIVED'] }
+  }).populate('order');
+
+  for (const del of remainingDeliveries) {
+    if (!del.order) continue;
+    const order = await Order.findById(del.order._id || del.order);
+    if (order) {
+      const prevCount = order.deferredCount || 0;
+      order.status = 'DEFERRED';
+      order.deferredCount = prevCount + 1;
+      order.lastDeferredAt = new Date();
+      await order.save();
+
+      await Deferral.create({
+        order: order._id,
+        plan: trip.plan,
+        reasonCode: 'VEHICLE_BREAKDOWN',
+        reason: `Reassignment rejected by Dispatcher: ${reason}`,
+        deferredBy: req.user._id,
+        deferredAt: new Date(),
+        previousDeferralCount: prevCount
+      });
+    }
+
+    del.status = 'FAILED';
+    await del.save();
+  }
+
+  res.status(200).json(new ApiResponse(200, trip, 'Reassignment rejected and remaining orders deferred'));
+});
+
 module.exports = {
   getTrips,
   getTripById,
   assignDriver,
   reassignVehicle,
+  approveReassignment,
+  rejectReassignment,
   deferRemainingOrders,
   startTrip,
   completeTrip,

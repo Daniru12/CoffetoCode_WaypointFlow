@@ -107,6 +107,27 @@ const getDispatcherAlerts = asyncHandler(async (req, res) => {
     });
   });
 
+  // 4. Trips with At-Risk status or pending auto-reassignment template
+  const atRiskTrips = await Trip.find({
+    $or: [
+      { atRisk: true },
+      { 'reassignmentTemplate.status': 'PROPOSED' }
+    ]
+  }).populate('vehicle driver plan');
+
+  atRiskTrips.forEach(trip => {
+    alerts.push({
+      type: 'TRIP_AT_RISK',
+      severity: 'CRITICAL',
+      title: `Trip ${trip.tripRef} Interrupted / At Risk`,
+      message: trip.reassignmentTemplate?.stockTransferNote || `Trip ${trip.tripRef} vehicle interrupted. Automated replacement plan generated and awaiting Dispatcher approval.`,
+      entityId: trip._id,
+      tripId: trip._id,
+      reassignmentTemplate: trip.reassignmentTemplate,
+      timestamp: trip.updatedAt
+    });
+  });
+
   res.status(200).json(new ApiResponse(200, alerts, `Retrieved ${alerts.length} operational alerts`));
 });
 
@@ -119,7 +140,11 @@ const getCriticalIncidents = asyncHandler(async (req, res) => {
     type: { $in: ['VEHICLE_BREAKDOWN', 'REEFER_FAILURE', 'ACCIDENT'] },
     status: { $in: ['OPEN', 'INVESTIGATING'] }
   })
-    .populate('vehicle trip order reportedBy')
+    .populate('vehicle reportedBy')
+    .populate({
+      path: 'trip',
+      populate: { path: 'vehicle driver plan' }
+    })
     .sort({ createdAt: -1 });
 
   res.status(200).json(new ApiResponse(200, incidents, `Retrieved ${incidents.length} critical incidents`));

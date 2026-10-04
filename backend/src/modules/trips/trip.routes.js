@@ -13,6 +13,8 @@ router.post('/:tripId/assign-driver', tripController.assignDriver);
 router.patch('/:tripId/reorder-stops', tripController.reorderTripStops);
 router.post('/:tripId/unassign-order', tripController.unassignTripOrder);
 router.post('/:tripId/reassign-vehicle', tripController.reassignVehicle);
+router.post('/:tripId/approve-reassignment', tripController.approveReassignment);
+router.post('/:tripId/reject-reassignment', tripController.rejectReassignment);
 router.post('/:tripId/defer-remaining-orders', tripController.deferRemainingOrders);
 
 module.exports = router;

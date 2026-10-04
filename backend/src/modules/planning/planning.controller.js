@@ -41,8 +41,12 @@ const createPlan = asyncHandler(async (req, res) => {
   const planRef = `PLAN-${depot.substring(0, 3).toUpperCase()}-${dateStr}-${revision}`;
 
   const candidateOrders = await Order.find({
-    requestedDeliveryDate: { $gte: startOfDay, $lte: endOfDay },
-    status: { $in: ['CONFIRMED', 'PLANNING'] }
+    $or: [
+      { requestedDeliveryDate: { $gte: startOfDay, $lte: endOfDay } },
+      { scheduledDispatchDate: { $gte: startOfDay, $lte: endOfDay } },
+      { requestedDeliveryDate: { $lte: endOfDay }, status: { $in: ['CONFIRMED', 'DEFERRED'] } }
+    ],
+    status: { $in: ['CONFIRMED', 'PLANNING', 'DEFERRED'] }
   }).populate('outlet');
 
   // Filter orders matching depot
@@ -282,6 +286,7 @@ const publishPlan = asyncHandler(async (req, res) => {
         driver: trip.driver,
         outlet: order.outlet._id,
         stopSequence: seq++,
+        plannedArrival: item.estimatedArrival || null,
         status: 'PENDING',
         syncStatus: 'SYNCED'
       });
@@ -344,14 +349,30 @@ const getUnallocatedOrders = asyncHandler(async (req, res) => {
   const endOfDay = new Date(plan.deliveryDate);
   endOfDay.setHours(23, 59, 59, 999);
 
+  // Find all active trips that are already PUBLISHED or IN_PROGRESS or COMPLETED
+  const activeTrips = await Trip.find({
+    status: { $in: ['READY', 'READY_FOR_LOADING', 'IN_PROGRESS', 'IN_TRANSIT', 'COMPLETED'] }
+  }).select('orders.order');
+  const assignedOrderIds = new Set(
+    activeTrips.flatMap(t => (t.orders || []).map(o => o.order ? o.order.toString() : null)).filter(Boolean)
+  );
+  (plan.servedOrders || []).forEach(id => assignedOrderIds.add(id.toString()));
+
   const orders = await Order.find({
-    requestedDeliveryDate: { $gte: startOfDay, $lte: endOfDay },
-    status: { $in: ['CONFIRMED', 'PLANNING', 'DEFERRED'] },
-    _id: { $nin: plan.servedOrders || [] }
+    $or: [
+      { requestedDeliveryDate: { $gte: startOfDay, $lte: endOfDay } },
+      { scheduledDispatchDate: { $gte: startOfDay, $lte: endOfDay } },
+      { requestedDeliveryDate: { $lte: endOfDay }, status: { $in: ['CONFIRMED', 'DEFERRED'] } }
+    ],
+    status: { $in: ['CONFIRMED', 'PLANNING', 'DEFERRED'] }
   }).populate('outlet');
 
-  // Filter depot
-  const unallocated = orders.filter(o => o.outlet && o.outlet.depot === plan.depot);
+  // Filter depot and not yet assigned
+  const unallocated = orders.filter(o => 
+    o.outlet && 
+    o.outlet.depot === plan.depot && 
+    !assignedOrderIds.has(o._id.toString())
+  );
 
   res.status(200).json(new ApiResponse(200, unallocated, `Retrieved ${unallocated.length} unallocated orders`));
 });
@@ -380,12 +401,29 @@ const autoAllocatePlan = asyncHandler(async (req, res) => {
   const endOfDay = new Date(plan.deliveryDate);
   endOfDay.setHours(23, 59, 59, 999);
 
+  // Exclude orders in other published trips
+  const otherActiveTrips = await Trip.find({
+    plan: { $ne: plan._id },
+    status: { $in: ['READY', 'READY_FOR_LOADING', 'IN_PROGRESS', 'IN_TRANSIT', 'COMPLETED'] }
+  }).select('orders.order');
+  const otherAssignedOrderIds = new Set(
+    otherActiveTrips.flatMap(t => (t.orders || []).map(o => o.order ? o.order.toString() : null)).filter(Boolean)
+  );
+
   const rawOrders = await Order.find({
-    requestedDeliveryDate: { $gte: startOfDay, $lte: endOfDay },
+    $or: [
+      { requestedDeliveryDate: { $gte: startOfDay, $lte: endOfDay } },
+      { scheduledDispatchDate: { $gte: startOfDay, $lte: endOfDay } },
+      { requestedDeliveryDate: { $lte: endOfDay }, status: { $in: ['CONFIRMED', 'DEFERRED'] } }
+    ],
     status: { $in: ['CONFIRMED', 'PLANNING', 'DEFERRED'] }
   }).populate('outlet');
 
-  const candidateOrders = rawOrders.filter(o => o.outlet && o.outlet.depot === plan.depot);
+  const candidateOrders = rawOrders.filter(o => 
+    o.outlet && 
+    o.outlet.depot === plan.depot && 
+    !otherAssignedOrderIds.has(o._id.toString())
+  );
 
   // 2. Clear existing draft trips for clean solve
   await Trip.deleteMany({ plan: plan._id, status: 'PLANNED' });
@@ -540,8 +578,81 @@ const autoAllocatePlan = asyncHandler(async (req, res) => {
     }
   }
 
-  // Evaluate plan status & constraint validation
-  if (generatedTrips.length === 0) {
+  // 7. Post-process formed trips: calculate sequenced ETAs, generate reverse LIFO loading lists, and attach explainability metadata
+  const createdTrips = await Trip.find({ plan: plan._id }).populate({
+    path: 'orders.order',
+    populate: { path: 'outlet' }
+  }).populate('vehicle driver');
+
+  const baseDeliveryDate = new Date(plan.deliveryDate);
+
+  const tripPlanningService = require('./tripPlanning.service');
+
+  for (const trip of createdTrips) {
+    const isFresh = trip.brand === 'Fresh';
+    const departure = new Date(baseDeliveryDate);
+    if (isFresh) {
+      departure.setHours(3, 30, 0, 0); // 03:30 AM Pre-dawn Fresh window per Challenge Booklet p. 21
+    } else {
+      departure.setHours(8, 30, 0, 0); // 08:30 AM Daytime standard window
+    }
+    trip.plannedDeparture = departure;
+
+    // Sequence stops using published travel & service allowance standards
+    const sequenced = tripPlanningService.sequenceStopArrivals(
+      departure,
+      trip.district,
+      trip.brand,
+      trip.orders
+    );
+
+    for (let i = 0; i < sequenced.length; i++) {
+      trip.orders[i].stopSequence = sequenced[i].stopSequence;
+      trip.orders[i].estimatedArrival = sequenced[i].estimatedArrival;
+    }
+
+    const tripMetrics = tripPlanningService.calculateTripTime(
+      trip.district,
+      trip.brand,
+      trip.orders.map(o => o.order)
+    );
+    trip.estimatedMinutes = tripMetrics.totalMinutes;
+    trip.estimatedDistanceKm = tripMetrics.estimatedDistanceKm;
+
+    // Auto-generate LIFO Loading List (exact reverse of delivery stop sequence)
+    const reversedStops = [...trip.orders].reverse();
+    trip.lifoLoadingList = reversedStops.map((item, idx) => {
+      const ord = item.order;
+      return {
+        loadingOrder: idx + 1,
+        stopSequence: item.stopSequence,
+        orderRef: ord?.orderRef || `ORD-${idx + 1}`,
+        outletName: ord?.outlet?.name || 'Retail Outlet',
+        units: ord?.orderUnits || 1,
+        weightKg: ord?.orderWeightKg || 0,
+        volumeM3: ord?.orderVolumeM3 || 0,
+        temp: ord?.tempRequirement || (isFresh ? 'chilled' : 'ambient')
+      };
+    });
+
+    const v = trip.vehicle;
+    const weightPct = v ? Math.round(((trip.totalWeightKg || 0) / (v.weightCapKg || 1)) * 100) : 0;
+    const volPct = v ? Math.round(((trip.totalVolumeM3 || 0) / (v.volumeCapM3 || 1)) * 100) : 0;
+
+    trip.isAutoAssigned = true;
+    trip.autoAssignReason = `Auto-assigned by Delivery Intelligence Solver to vehicle ${v?.vehicleId || 'FLEET'} (${v?.type || 'van'}, ${v?.temp || 'ambient'}) based on brand '${trip.brand}', district '${trip.district}', trip duration (${trip.estimatedMinutes}m: ${tripMetrics.outboundTravel}m outbound + ${tripMetrics.interStopTravel}m transit + ${tripMetrics.totalHandling}m dock allowance), payload (${trip.totalWeightKg}kg / ${weightPct}%, ${trip.totalVolumeM3?.toFixed(1)}m³ / ${volPct}%), and reverse LIFO dock sequencing.`;
+
+    trip.validationStatus = {
+      valid: true,
+      evaluatedAt: new Date(),
+      status: 'AUTO_OPTIMAL'
+    };
+
+    await trip.save();
+  }
+
+  // 8. Evaluate plan status & constraint validation
+  if (createdTrips.length === 0) {
     plan.status = 'DRAFT';
     plan.validationSummary = {
       evaluatedAt: new Date(),
@@ -609,24 +720,81 @@ const autoAllocatePlan = asyncHandler(async (req, res) => {
     entityType: 'DeliveryPlan',
     entityId: plan._id,
     newData: {
-      tripsCreated: generatedTrips.length,
+      tripsCreated: createdTrips.length,
       ordersServed: plan.servedOrders.length,
       ordersDeferred: plan.deferredOrders.length
     },
     reason: `Automated route allocation solver completed for ${plan.depot} depot on ${plan.deliveryDate.toISOString().slice(0, 10)}`
   });
 
-  const populatedTrips = await Trip.find({ plan: plan._id }).populate('vehicle driver orders.order');
+  const finalTrips = await Trip.find({ plan: plan._id }).populate('vehicle driver orders.order');
 
   res.status(200).json(
     new ApiResponse(200, {
       plan,
-      tripsCount: populatedTrips.length,
+      tripsCount: finalTrips.length,
       servedOrdersCount: plan.servedOrders.length,
       deferredOrdersCount: plan.deferredOrders.length,
-      trips: populatedTrips
+      trips: finalTrips
     }, 'Automated allocation solver complete')
   );
+});
+
+/**
+ * Dispatcher 1-click Approve All Trips in a Delivery Plan
+ * POST /api/v1/plans/:id/approve-all
+ */
+const approveAllPlanTrips = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const plan = await DeliveryPlan.findOne({
+    $or: [{ planRef: id }, ...(id.match(/^[0-9a-fA-F]{24}$/) ? [{ _id: id }] : [])]
+  });
+
+  if (!plan) {
+    return res.status(404).json(new ApiResponse(404, null, 'Plan not found'));
+  }
+
+  const trips = await Trip.find({ plan: plan._id }).populate('vehicle orders.order');
+  if (trips.length === 0) {
+    return res.status(400).json(new ApiResponse(400, null, 'Cannot approve plan with 0 formed trips'));
+  }
+
+  for (const trip of trips) {
+    trip.validationStatus = {
+      valid: true,
+      approvedBy: req.user._id,
+      approvedAt: new Date(),
+      status: 'APPROVED'
+    };
+    await trip.save();
+  }
+
+  plan.status = 'READY';
+  plan.validationSummary = {
+    evaluatedAt: new Date(),
+    overallValid: true,
+    message: `All ${trips.length} vehicle runs reviewed and approved by Dispatcher`,
+    tripEvaluations: trips.map(t => ({
+      tripId: t._id,
+      tripRef: t.tripRef,
+      vehicleId: t.vehicle?.vehicleId,
+      valid: true,
+      issues: []
+    }))
+  };
+  await plan.save();
+
+  await auditService.log({
+    user: req.user,
+    action: 'PLAN_VALIDATED',
+    entityType: 'DeliveryPlan',
+    entityId: plan._id,
+    newData: { tripsApproved: trips.length, status: 'READY' },
+    reason: 'Dispatcher executed 1-click Approve All on draft delivery plan'
+  });
+
+  const updatedTrips = await Trip.find({ plan: plan._id }).populate('vehicle driver orders.order');
+  res.status(200).json(new ApiResponse(200, { plan, trips: updatedTrips }, `All ${trips.length} trips approved successfully`));
 });
 
 module.exports = {
@@ -636,5 +804,6 @@ module.exports = {
   validatePlan,
   publishPlan,
   getUnallocatedOrders,
-  autoAllocatePlan
+  autoAllocatePlan,
+  approveAllPlanTrips
 };

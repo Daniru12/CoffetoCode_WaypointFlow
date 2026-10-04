@@ -169,16 +169,22 @@ export const ReplenishmentPlanForm = () => {
       } : undefined,
       startDate,
       endDate: noEndDate ? null : endDate,
-      brand: 'Standard',
+      brand: outlets.find(o => selectedOutlets.includes(o._id))?.brand || 'Fresh',
       cargoType: calculatedCargoType,
       items: itemsList.map(item => ({
         itemName: item.itemName,
         qty: item.requestedQty,
         unit: item.unit || 'units',
-        temperatureRequirement: determineTemperature(item)
+        temperatureRequirement: determineTemperature(item),
+        weightKg: item.weightKg || (item.requestedQty * 2.5),
+        volumeM3: item.volumeM3 || (item.requestedQty * 0.015)
       })),
-      estimatedTotalWeightKg: 0, // Placeholder
-      estimatedTotalVolumeM3: 0, // Placeholder
+      estimatedTotalWeightKg: Math.round(
+        itemsList.reduce((acc, it) => acc + (Number(it.requestedQty) || 1) * 2.5, 0) * (selectedOutlets.length || 1) * 100
+      ) / 100,
+      estimatedTotalVolumeM3: Math.round(
+        itemsList.reduce((acc, it) => acc + (Number(it.requestedQty) || 1) * 0.015, 0) * (selectedOutlets.length || 1) * 1000
+      ) / 1000,
     };
 
     try {

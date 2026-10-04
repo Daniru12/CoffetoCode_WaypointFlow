@@ -15,7 +15,20 @@ const tripSchema = new mongoose.Schema({
   orders: [
     {
       order: { type: mongoose.Schema.Types.ObjectId, ref: 'Order' },
-      stopSequence: { type: Number }
+      stopSequence: { type: Number },
+      estimatedArrival: { type: Date }
+    }
+  ],
+  lifoLoadingList: [
+    {
+      loadingOrder: { type: Number },
+      stopSequence: { type: Number },
+      orderRef: { type: String },
+      outletName: { type: String },
+      units: { type: Number },
+      weightKg: { type: Number },
+      volumeM3: { type: Number },
+      temp: { type: String }
     }
   ],
   totalWeightKg: { type: Number, default: 0 },
@@ -23,6 +36,11 @@ const tripSchema = new mongoose.Schema({
   estimatedMinutes: { type: Number, default: 0 },
   estimatedDistanceKm: { type: Number, default: 0 },
   plannedDeparture: { type: Date },
+  isAutoAssigned: { type: Boolean, default: false },
+  autoAssignReason: { type: String, default: null },
+  atRisk: { type: Boolean, default: false },
+  reassignmentTemplate: { type: Object, default: null },
+  validationStatus: { type: Object, default: null },
   status: {
     type: String,
     enum: [

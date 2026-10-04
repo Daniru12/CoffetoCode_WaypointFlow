@@ -7,11 +7,13 @@ const ProofOfDelivery = require('../pod/proofOfDelivery.model');
 const Receipt = require('../receipts/receipt.model');
 const Issue = require('../issues/issue.model');
 const DriverLocation = require('../tracking/driverLocation.model');
+const Deferral = require('../deferrals/deferral.model');
 const ApiResponse = require('../../utils/apiResponse');
 const asyncHandler = require('../../utils/asyncHandler');
 const socketService = require('../../services/socket.service');
 const auditService = require('../../services/audit.service');
 const storageService = require('../../services/storage.service');
+const { getNextSuggestedRun } = require('../../utils/time.util');
 
 /**
  * Get driver routes and assigned trips for today
@@ -448,12 +450,20 @@ const recordDriverLocation = asyncHandler(async (req, res) => {
  * POST /api/v1/driver/vehicle-issue
  */
 const reportVehicleIssue = asyncHandler(async (req, res) => {
-  const { tripId, vehicleId, type = 'VEHICLE_BREAKDOWN', description, severity = 'CRITICAL' } = req.body;
+  const { tripId, vehicleId, type = 'VEHICLE_BREAKDOWN', description, severity = 'CRITICAL', cannotContinue } = req.body;
+  const isCannotContinue = cannotContinue === true || cannotContinue === 'true';
 
   let trip = null;
-  if (tripId) trip = await Trip.findById(tripId);
+  if (tripId) {
+    trip = await Trip.findById(tripId).populate('vehicle driver');
+  } else {
+    trip = await Trip.findOne({
+      driver: req.user._id,
+      status: { $in: ['IN_TRANSIT', 'IN_PROGRESS', 'READY_FOR_LOADING', 'LOADING'] }
+    }).populate('vehicle driver');
+  }
 
-  const targetVehicleId = vehicleId || (trip ? trip.vehicle : null);
+  const targetVehicleId = vehicleId || (trip ? (trip.vehicle?._id || trip.vehicle) : null);
 
   const evidenceUrls = [];
   if (req.files && req.files.length > 0) {
@@ -471,9 +481,9 @@ const reportVehicleIssue = asyncHandler(async (req, res) => {
     trip: trip ? trip._id : null,
     vehicle: targetVehicleId,
     reportedBy: req.user._id,
-    description: description || 'Vehicle breakdown on route',
+    description: `${description || 'Vehicle breakdown on route'}${isCannotContinue ? ' [CANNOT CONTINUE - REASSIGNMENT REQUESTED]' : ''}`,
     evidenceUrls,
-    severity,
+    severity: isCannotContinue ? 'CRITICAL' : severity,
     status: 'OPEN'
   });
 
@@ -483,12 +493,181 @@ const reportVehicleIssue = asyncHandler(async (req, res) => {
 
   if (trip) {
     trip.status = 'INTERRUPTED';
+
+    if (isCannotContinue) {
+      trip.atRisk = true;
+
+      // 1. Mark remaining stops "At Risk"
+      const remainingDeliveries = await Delivery.find({
+        trip: trip._id,
+        status: { $in: ['PENDING', 'ARRIVED'] }
+      }).populate('order outlet');
+
+      for (const d of remainingDeliveries) {
+        d.status = 'AT_RISK';
+        d.isAtRisk = true;
+        await d.save();
+      }
+
+      // Calculate payload demand for remaining stops
+      const remainingWeightKg = remainingDeliveries.reduce((sum, d) => sum + (d.order?.orderWeightKg || 0), 0);
+      const remainingVolumeM3 = remainingDeliveries.reduce((sum, d) => sum + (d.order?.orderVolumeM3 || 0), 0);
+      const hasChilled = remainingDeliveries.some(d => d.order?.tempRequirement === 'chilled' || trip.brand === 'Fresh');
+      const hasVanOnly = remainingDeliveries.some(d => d.outlet?.parkingConstraint === 'van_only');
+
+      const originalVehicle = trip.vehicle?.vehicleId ? trip.vehicle : await Vehicle.findById(trip.vehicle);
+      const depot = originalVehicle?.depot || 'Peliyagoda';
+
+      // 2. Automatically find best replacement vehicle
+      const candidateFilter = {
+        _id: { $ne: targetVehicleId },
+        depot,
+        status: 'AVAILABLE',
+        weightCapKg: { $gte: remainingWeightKg },
+        volumeCapM3: { $gte: remainingVolumeM3 }
+      };
+
+      if (hasChilled) {
+        candidateFilter.temp = 'reefer';
+      }
+      if (hasVanOnly) {
+        candidateFilter.type = 'van';
+      }
+
+      let replacementVehicle = await Vehicle.findOne(candidateFilter).sort({ weeklyFuelQuotaL: -1 });
+
+      if (!replacementVehicle && !hasVanOnly) {
+        replacementVehicle = await Vehicle.findOne({
+          _id: { $ne: targetVehicleId },
+          status: 'AVAILABLE',
+          weightCapKg: { $gte: remainingWeightKg },
+          volumeCapM3: { $gte: remainingVolumeM3 },
+          ...(hasChilled ? { temp: 'reefer' } : {})
+        }).sort({ weeklyFuelQuotaL: -1 });
+      }
+
+      if (replacementVehicle) {
+        // Find replacement driver: linked driver or depot driver
+        let replacementDriver = null;
+        if (replacementVehicle.assignedDriver) {
+          replacementDriver = await User.findById(replacementVehicle.assignedDriver);
+        }
+        if (!replacementDriver) {
+          replacementDriver = await User.findOne({
+            role: 'DRIVER',
+            depot: replacementVehicle.depot,
+            _id: { $ne: req.user._id }
+          });
+        }
+
+        // Updated ETAs for remaining stops starting +30m response
+        const now = new Date();
+        const updatedStops = remainingDeliveries.map((del, idx) => {
+          const eta = new Date(now.getTime() + (30 + (idx + 1) * 25) * 60000);
+          return {
+            deliveryId: del._id,
+            orderId: del.order?._id,
+            orderRef: del.order?.orderRef,
+            outletName: del.outlet?.name,
+            stopSequence: idx + 1,
+            estimatedArrival: eta
+          };
+        });
+
+        const stockTransferNote = `Stock transfer required from disabled ${originalVehicle?.vehicleId || 'ORIGINAL'} to ${replacementVehicle.vehicleId}. Total load: ${remainingWeightKg}kg / ${remainingVolumeM3.toFixed(1)}m³ across ${remainingDeliveries.length} retail outlets. ${hasChilled ? 'Cold chain reefer integrity (< 4°C) must be preserved.' : ''}`;
+
+        trip.reassignmentTemplate = {
+          status: 'PROPOSED',
+          proposedAt: new Date(),
+          originalTripId: trip._id,
+          originalVehicle: {
+            _id: originalVehicle?._id,
+            vehicleId: originalVehicle?.vehicleId,
+            type: originalVehicle?.type,
+            temp: originalVehicle?.temp
+          },
+          replacementVehicle: {
+            _id: replacementVehicle._id,
+            vehicleId: replacementVehicle.vehicleId,
+            type: replacementVehicle.type,
+            temp: replacementVehicle.temp,
+            weightCapKg: replacementVehicle.weightCapKg,
+            volumeCapM3: replacementVehicle.volumeCapM3,
+            depot: replacementVehicle.depot
+          },
+          replacementDriver: replacementDriver ? {
+            _id: replacementDriver._id,
+            name: replacementDriver.name,
+            phone: replacementDriver.phone
+          } : null,
+          remainingOrders: updatedStops,
+          remainingWeightKg,
+          remainingVolumeM3,
+          stockTransferNote,
+          cannotContinue: true,
+          reason: `Driver reported ${type}: ${description || 'Cannot continue delivery run'}`
+        };
+      } else {
+        // No vehicle available: auto-defer remaining orders
+        trip.reassignmentTemplate = {
+          status: 'NO_VEHICLE_AVAILABLE',
+          proposedAt: new Date(),
+          originalTripId: trip._id,
+          originalVehicle: {
+            _id: originalVehicle?._id,
+            vehicleId: originalVehicle?.vehicleId
+          },
+          replacementVehicle: null,
+          replacementDriver: null,
+          remainingOrders: remainingDeliveries.map(d => ({
+            deliveryId: d._id,
+            orderId: d.order?._id,
+            orderRef: d.order?.orderRef,
+            outletName: d.outlet?.name
+          })),
+          cannotContinue: true,
+          reason: 'No replacement fleet vehicle available with required temperature and payload capacity.'
+        };
+
+        for (const del of remainingDeliveries) {
+          if (!del.order) continue;
+          const order = await Order.findById(del.order._id || del.order);
+          if (order) {
+            const prevCount = order.deferredCount || 0;
+            order.status = 'DEFERRED';
+            order.deferredCount = prevCount + 1;
+            order.lastDeferredAt = new Date();
+            await order.save();
+
+            await Deferral.create({
+              order: order._id,
+              plan: trip.plan,
+              reasonCode: 'VEHICLE_BREAKDOWN',
+              reason: `Breakdown disruption: ${type}. Zero replacement vehicles available at ${depot} depot.`,
+              deferredBy: req.user._id,
+              deferredAt: new Date(),
+              nextSuggestedRun: getNextSuggestedRun(order.requestedDeliveryDate),
+              previousDeferralCount: prevCount
+            });
+          }
+        }
+      }
+    }
+
     await trip.save();
   }
 
-  socketService.emitVehicleBreakdown(issue);
+  socketService.emitVehicleBreakdown({
+    issue,
+    trip,
+    reassignmentTemplate: trip?.reassignmentTemplate,
+    cannotContinue: isCannotContinue
+  });
 
-  res.status(201).json(new ApiResponse(201, issue, 'Vehicle breakdown reported; dispatcher alerted'));
+  res.status(201).json(new ApiResponse(201, {
+    issue,
+    reassignmentTemplate: trip?.reassignmentTemplate
+  }, isCannotContinue ? 'Critical breakdown recorded; stops flagged At Risk and replacement vehicle computed' : 'Vehicle issue reported; dispatcher alerted'));
 });
 
 /**

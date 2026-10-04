@@ -131,6 +131,33 @@ export const LoaderChecklist = () => {
         </button>
       </div>
 
+      {/* Emergency Stock Transfer Alert Strip */}
+      {(job?.isStockTransfer || job?.stockTransferNote || job?.trip?.reassignmentTemplate?.stockTransferNote) && (
+        <div style={{
+          backgroundColor: '#FFFBEB',
+          border: '1px solid #FCD34D',
+          borderRadius: 'var(--radius-md)',
+          padding: '1rem 1.25rem',
+          marginBottom: '1.25rem',
+          display: 'flex',
+          gap: '0.75rem',
+          alignItems: 'flex-start'
+        }}>
+          <AlertTriangle size={20} color="#D97706" style={{ flexShrink: 0, marginTop: '2px' }} />
+          <div>
+            <h4 style={{ margin: '0 0 0.25rem 0', color: '#92400E', fontSize: '0.95rem', fontWeight: 800 }}>
+              ⚠️ Emergency Dock Stock Transfer Active
+            </h4>
+            <div style={{ fontSize: '0.825rem', color: '#78350F', lineHeight: '1.4' }}>
+              {job?.stockTransferNote || job?.trip?.reassignmentTemplate?.stockTransferNote}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: '#B45309', marginTop: '0.25rem', fontWeight: 600 }}>
+              Verify all transferred cartons are placed into replacement vehicle {job?.vehicle?.vehicleId} and match the checklist below before signing off.
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* LIFO Explanation Strip */}
       <div style={{
         backgroundColor: '#EFF6FF',
