@@ -40,7 +40,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Serverless DB connection middleware (ensures Mongoose is connected on Vercel)
 app.use(async (req, res, next) => {
-  if (req.path === '/' || req.path === '/health') {
+  if (req.path === '/' || req.path === '/health' || req.path.startsWith('/socket.io')) {
     return next();
   }
   try {
@@ -55,6 +55,15 @@ app.use(async (req, res, next) => {
       success: false
     });
   }
+});
+
+// Graceful fallback for socket.io polling requests in serverless environments
+app.all('/socket.io*', (req, res) => {
+  res.status(200).json({
+    status: 'serverless_mode',
+    message: 'Socket.IO is inactive on Vercel serverless. Frontend uses periodic sync fallback.',
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Health / status endpoint
