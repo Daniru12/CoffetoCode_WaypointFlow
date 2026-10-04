@@ -40,7 +40,7 @@ export const Sidebar = () => {
           { to: '/store/dashboard', label: 'Store Dashboard', icon: LayoutDashboard },
           { to: '/store/inventory', label: 'My Inventory', icon: Package },
           { to: '/store/orders/create', label: 'Create Order', icon: PlusCircle },
-          { to: '/store/orders', label: 'My Store Orders', icon: ShoppingCart },
+          { to: '/store/orders', label: 'My Store Orders', icon: ShoppingCart, exact: true },
           { to: '/store/replenishment-plans', label: 'Replenishment Plans', icon: Calendar }
         ];
       case 'DISPATCHER':
@@ -126,6 +126,7 @@ export const Sidebar = () => {
             <NavLink
               key={link.to}
               to={link.to}
+              end={link.exact}
               style={({ isActive }) => ({
                 display: 'flex',
                 alignItems: 'center',
