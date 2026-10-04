@@ -11,6 +11,7 @@ export const StoreOrders = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
+  const [sourceFilter, setSourceFilter] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const navigate = useNavigate();
 
@@ -32,8 +33,9 @@ export const StoreOrders = () => {
 
   const filteredOrders = orders.filter((o) => {
     const matchesStatus = !statusFilter || o.status === statusFilter;
+    const matchesSource = !sourceFilter || (o.orderSource || 'MANUAL') === sourceFilter;
     const matchesSearch = !searchTerm || o.orderRef.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesStatus && matchesSearch;
+    return matchesStatus && matchesSource && matchesSearch;
   });
 
   return (
@@ -69,7 +71,7 @@ export const StoreOrders = () => {
 
           <select
             className="form-select"
-            style={{ width: '200px' }}
+            style={{ width: '180px' }}
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
           >
@@ -80,6 +82,17 @@ export const StoreOrders = () => {
             <option value="OUT_FOR_DELIVERY">Out for Delivery</option>
             <option value="DELIVERED">Delivered</option>
             <option value="DEFERRED">Deferred</option>
+          </select>
+
+          <select
+            className="form-select"
+            style={{ width: '180px' }}
+            value={sourceFilter}
+            onChange={(e) => setSourceFilter(e.target.value)}
+          >
+            <option value="">All Sources</option>
+            <option value="MANUAL">Manual Ad-Hoc</option>
+            <option value="REPLENISHMENT_PLAN">Replenishment Plan</option>
           </select>
         </div>
 
@@ -101,7 +114,8 @@ export const StoreOrders = () => {
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left', color: 'var(--text-muted)' }}>
                   <th style={{ padding: '0.75rem 0.5rem' }}>Order Ref</th>
-                  <th style={{ padding: '0.75rem 0.5rem' }}>Delivery Date</th>
+                  <th style={{ padding: '0.75rem 0.5rem' }}>Source</th>
+                  <th style={{ padding: '0.75rem 0.5rem' }}>Delivery Date & Cycle</th>
                   <th style={{ padding: '0.75rem 0.5rem' }}>Brand & Temp</th>
                   <th style={{ padding: '0.75rem 0.5rem' }}>Quantity / Load</th>
                   <th style={{ padding: '0.75rem 0.5rem' }}>Delivery Window</th>
@@ -114,7 +128,24 @@ export const StoreOrders = () => {
                   <tr key={ord._id} style={{ borderBottom: '1px solid #F1F5F9' }}>
                     <td style={{ padding: '0.85rem 0.5rem', fontWeight: 700 }}>{ord.orderRef}</td>
                     <td style={{ padding: '0.85rem 0.5rem' }}>
-                      {new Date(ord.requestedDeliveryDate).toLocaleDateString()}
+                      <span style={{
+                        padding: '0.2rem 0.5rem',
+                        borderRadius: '4px',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        backgroundColor: ord.orderSource === 'REPLENISHMENT_PLAN' ? '#EFF6FF' : '#F1F5F9',
+                        color: ord.orderSource === 'REPLENISHMENT_PLAN' ? '#1D4ED8' : '#475569'
+                      }}>
+                        {ord.orderSource === 'REPLENISHMENT_PLAN' ? 'Plan-Based' : 'Manual'}
+                      </span>
+                    </td>
+                    <td style={{ padding: '0.85rem 0.5rem' }}>
+                      <div>{new Date(ord.requestedDeliveryDate).toLocaleDateString()}</div>
+                      {ord.isPostCutoff && (
+                        <div style={{ fontSize: '0.7rem', color: '#EA580C', fontWeight: 700 }}>
+                          Post-Cutoff (Next Cycle)
+                        </div>
+                      )}
                     </td>
                     <td style={{ padding: '0.85rem 0.5rem' }}>
                       <span style={{ textTransform: 'capitalize' }}>{ord.brand} • {ord.tempRequirement}</span>

@@ -19,6 +19,8 @@ export const OrdersQueue = () => {
   const [depot, setDepot] = useState('Peliyagoda');
   const [temperature, setTemperature] = useState('');
   const [status, setStatus] = useState('');
+  const [orderSource, setOrderSource] = useState('');
+  const [dispatchCycle, setDispatchCycle] = useState('');
   const [deferredOnly, setDeferredOnly] = useState(false);
   const [search, setSearch] = useState('');
 
@@ -32,7 +34,7 @@ export const OrdersQueue = () => {
   useEffect(() => {
     loadQueue();
     loadLatestPlan();
-  }, [brand, district, depot, temperature, status, deferredOnly]);
+  }, [brand, district, depot, temperature, status, orderSource, dispatchCycle, deferredOnly]);
 
   const loadLatestPlan = async () => {
     try {
@@ -53,6 +55,8 @@ export const OrdersQueue = () => {
         depot: depot || undefined,
         temperature: temperature || undefined,
         status: status || undefined,
+        orderSource: orderSource || undefined,
+        dispatchCycle: dispatchCycle || undefined,
         deferred: deferredOnly ? 'true' : undefined
       });
       setOrders(res.data || []);
@@ -142,6 +146,24 @@ export const OrdersQueue = () => {
             </select>
           </div>
 
+          <div>
+            <label className="form-label">Source</label>
+            <select className="form-select" value={orderSource} onChange={(e) => setOrderSource(e.target.value)}>
+              <option value="">All Sources</option>
+              <option value="MANUAL">Manual Ad-Hoc</option>
+              <option value="REPLENISHMENT_PLAN">Replenishment Plan</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="form-label">Cutoff Cycle</label>
+            <select className="form-select" value={dispatchCycle} onChange={(e) => setDispatchCycle(e.target.value)}>
+              <option value="">All Cycles</option>
+              <option value="CURRENT_CYCLE">Current Cycle (Pre-Cutoff)</option>
+              <option value="NEXT_CYCLE">Next Cycle (Post-Cutoff)</option>
+            </select>
+          </div>
+
           <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: '0.4rem' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', cursor: 'pointer', fontWeight: 600 }}>
               <input
@@ -167,10 +189,10 @@ export const OrdersQueue = () => {
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left', color: 'var(--text-muted)' }}>
                   <th style={{ padding: '0.75rem 0.5rem' }}>Order ID</th>
+                  <th style={{ padding: '0.75rem 0.5rem' }}>Source</th>
                   <th style={{ padding: '0.75rem 0.5rem' }}>Outlet & District</th>
-                  <th style={{ padding: '0.75rem 0.5rem' }}>Brand</th>
-                  <th style={{ padding: '0.75rem 0.5rem' }}>Temp</th>
-                  <th style={{ padding: '0.75rem 0.5rem' }}>Delivery Window</th>
+                  <th style={{ padding: '0.75rem 0.5rem' }}>Brand & Temp</th>
+                  <th style={{ padding: '0.75rem 0.5rem' }}>Cycle & Window</th>
                   <th style={{ padding: '0.75rem 0.5rem' }}>Load Size</th>
                   <th style={{ padding: '0.75rem 0.5rem' }}>Status</th>
                   <th style={{ padding: '0.75rem 0.5rem', textAlign: 'right' }}>Action</th>
@@ -181,28 +203,51 @@ export const OrdersQueue = () => {
                   <tr key={ord._id} style={{ borderBottom: '1px solid #F1F5F9' }}>
                     <td style={{ padding: '0.75rem 0.5rem', fontWeight: 700 }}>{ord.orderRef}</td>
                     <td style={{ padding: '0.75rem 0.5rem' }}>
-                      <div style={{ fontWeight: 600 }}>{ord.outlet?.name || ord.outlet?.outletId}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                        {ord.outlet?.district} • {ord.outlet?.parkingConstraint || 'normal'}
-                      </div>
-                    </td>
-                    <td style={{ padding: '0.75rem 0.5rem' }}>
-                      <Badge status={ord.brand} />
-                    </td>
-                    <td style={{ padding: '0.75rem 0.5rem' }}>
                       <span style={{
-                        padding: '0.2rem 0.5rem',
-                        borderRadius: 'var(--radius-sm)',
-                        fontSize: '0.75rem',
+                        padding: '0.2rem 0.45rem',
+                        borderRadius: '4px',
+                        fontSize: '0.7rem',
                         fontWeight: 700,
-                        backgroundColor: ord.tempRequirement === 'chilled' ? '#EFF6FF' : '#F1F5F9',
-                        color: ord.tempRequirement === 'chilled' ? '#1D4ED8' : '#475569'
+                        backgroundColor: ord.orderSource === 'REPLENISHMENT_PLAN' ? '#EFF6FF' : '#F1F5F9',
+                        color: ord.orderSource === 'REPLENISHMENT_PLAN' ? '#1D4ED8' : '#475569'
                       }}>
-                        {ord.tempRequirement}
+                        {ord.orderSource === 'REPLENISHMENT_PLAN' ? 'Plan' : 'Manual'}
                       </span>
                     </td>
                     <td style={{ padding: '0.75rem 0.5rem' }}>
-                      {ord.deliveryWindow ? `${ord.deliveryWindow.start} - ${ord.deliveryWindow.end}` : '06:00 - 08:00'}
+                      <div style={{ fontWeight: 600 }}>{ord.outlet?.name || ord.outlet?.outletId}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        {ord.outlet?.district} • {ord.outlet?.dockType || 'rear_dock'}
+                      </div>
+                    </td>
+                    <td style={{ padding: '0.75rem 0.5rem' }}>
+                      <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+                        <Badge status={ord.brand} />
+                        <span style={{
+                          padding: '0.15rem 0.4rem',
+                          borderRadius: 'var(--radius-sm)',
+                          fontSize: '0.7rem',
+                          fontWeight: 700,
+                          backgroundColor: ord.tempRequirement === 'chilled' ? '#EFF6FF' : '#F1F5F9',
+                          color: ord.tempRequirement === 'chilled' ? '#1D4ED8' : '#475569'
+                        }}>
+                          {ord.tempRequirement}
+                        </span>
+                      </div>
+                    </td>
+                    <td style={{ padding: '0.75rem 0.5rem' }}>
+                      <div style={{ fontSize: '0.75rem' }}>
+                        {ord.deliveryWindow ? `${ord.deliveryWindow.start} - ${ord.deliveryWindow.end}` : '06:00 - 08:00'}
+                      </div>
+                      {ord.isPostCutoff ? (
+                        <span style={{ fontSize: '0.68rem', color: '#EA580C', fontWeight: 800 }}>
+                          Post-Cutoff (Next Cycle)
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: '0.68rem', color: '#16A34A', fontWeight: 700 }}>
+                          Current Cycle
+                        </span>
+                      )}
                     </td>
                     <td style={{ padding: '0.75rem 0.5rem' }}>
                       {ord.orderUnits} units ({ord.orderWeightKg}kg / {ord.orderVolumeM3}m³)

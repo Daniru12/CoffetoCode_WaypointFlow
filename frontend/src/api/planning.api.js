@@ -31,7 +31,11 @@ export const planningApi = {
   getCriticalIncidents: () => api.get('/dispatcher/critical-incidents'),
 
   // Trip Sequence & Stop Management
+  getTrips: (params) => api.get('/trips', { params }),
   reorderTripStops: (tripId, stopOrderIds) => api.patch(`/trips/${tripId}/reorder-stops`, { stopOrderIds }),
   unassignTripOrder: (tripId, orderId) => api.post(`/trips/${tripId}/unassign-order`, { orderId }),
-  assignTripDriver: (tripId, driverId) => api.post(`/trips/${tripId}/assign-driver`, { driverId })
+  assignTripDriver: (tripId, driverId) => api.post(`/trips/${tripId}/assign-driver`, { driverId }),
+  approveAllPlanTrips: (id) => api.post(`/plans/${id}/approve-all`),
+  approveReassignment: (tripId, data) => api.post(`/trips/${tripId}/approve-reassignment`, data),
+  rejectReassignment: (tripId, data) => api.post(`/trips/${tripId}/reject-reassignment`, data)
 };

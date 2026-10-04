@@ -3,6 +3,7 @@ import { LogOut, Wifi, WifiOff, Bell } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useSocket } from '../../hooks/useSocket';
 import { useOffline } from '../../hooks/useOffline';
+import { SimulationTimeBar } from '../common/SimulationTimeBar';
 
 export const Topbar = ({ title, subtitle }) => {
   const { user, logout } = useAuth();
@@ -32,6 +33,9 @@ export const Topbar = ({ title, subtitle }) => {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+        {/* Simulation Time Clock Controller */}
+        <SimulationTimeBar />
+
         {/* Offline / Online Network Indicator */}
         {isOffline ? (
           <div style={{

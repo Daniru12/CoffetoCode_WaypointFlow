@@ -192,9 +192,30 @@ export const DispatcherDashboard = () => {
                       <div style={{ fontSize: '0.775rem', color: 'var(--text-secondary)' }}>{al.message}</div>
                     </div>
                   </div>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    {al.timestamp ? new Date(al.timestamp).toLocaleTimeString() : 'Recent'}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                      {al.timestamp ? new Date(al.timestamp).toLocaleTimeString() : 'Recent'}
+                    </span>
+                    {al.type === 'TRIP_AT_RISK' && (
+                      <button
+                        className="btn-primary"
+                        onClick={() => navigate('/dispatcher/planning')}
+                        style={{
+                          fontSize: '0.75rem',
+                          padding: '0.35rem 0.75rem',
+                          backgroundColor: '#E11D48',
+                          borderColor: '#E11D48',
+                          fontWeight: 800,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.3rem'
+                        }}
+                      >
+                        <span>Review Reassignment</span>
+                        <ArrowRight size={14} />
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

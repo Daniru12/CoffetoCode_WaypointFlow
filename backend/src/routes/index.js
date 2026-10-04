@@ -22,6 +22,7 @@ const notificationRoutes = require('../modules/notifications/notification.routes
 const auditRoutes = require('../modules/audit/audit.routes');
 const issueRoutes = require('../modules/issues/issue.routes');
 const inventoryRoutes = require('../modules/inventory/inventory.routes');
+const simulationRoutes = require('../modules/simulation/simulation.routes');
 
 router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
@@ -44,5 +45,6 @@ router.use('/notifications', notificationRoutes);
 router.use('/audit', auditRoutes);
 router.use('/issues', issueRoutes);
 router.use('/inventory', inventoryRoutes);
+router.use('/simulation', simulationRoutes);
 
 module.exports = router;
