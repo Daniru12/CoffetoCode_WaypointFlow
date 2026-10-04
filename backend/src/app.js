@@ -1,3 +1,46 @@
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+// Serverless read-only filesystem guard (Vercel / AWS Lambda)
+// Intercepts mkdirSync & mkdir to redirect write attempts from read-only /var/task to /tmp
+const origMkdirSync = fs.mkdirSync;
+fs.mkdirSync = function (dirPath, options) {
+  try {
+    return origMkdirSync.call(fs, dirPath, options);
+  } catch (err) {
+    if (err.code === 'EROFS' || err.code === 'EACCES') {
+      try {
+        const basename = path.basename(dirPath);
+        return origMkdirSync.call(fs, path.join(os.tmpdir(), basename), options);
+      } catch (fallbackErr) {
+        return undefined;
+      }
+    }
+    throw err;
+  }
+};
+
+const origMkdir = fs.mkdir;
+fs.mkdir = function (dirPath, options, callback) {
+  if (typeof options === 'function') {
+    callback = options;
+    options = {};
+  }
+  return origMkdir.call(fs, dirPath, options, (err, ...args) => {
+    if (err && (err.code === 'EROFS' || err.code === 'EACCES')) {
+      try {
+        const basename = path.basename(dirPath);
+        return origMkdir.call(fs, path.join(os.tmpdir(), basename), options, callback);
+      } catch (fallbackErr) {
+        if (callback) return callback(null);
+        return undefined;
+      }
+    }
+    if (callback) callback(err, ...args);
+  });
+};
+
 const express = require('express');
 const cors = require('cors');
 const config = require('./config/env');
